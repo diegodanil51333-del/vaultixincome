@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Invitation } from '../types';
-import { getUsers, getInvitations, saveInvitations, saveUsers, saveCurrentSession } from '../db';
+import { getUsers, getInvitations, saveInvitations, saveUsers, saveCurrentSession, getReferralConfig } from '../db';
 import { Users, Copy, Check, Share2, Award, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface InviteScreenProps {
@@ -16,6 +16,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const refConfig = getReferralConfig();
   const referralLink = `https://vaultix.income/invite?ref=${user.referralCode}`;
   const invitations = getInvitations().filter((inv) => inv.inviterUsername === user.username);
   const referredUsers = getUsers().filter((u) => u.referredByUsername === user.username);
@@ -81,9 +82,11 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     allInvs.push(newInv);
     saveInvitations(allInvs);
 
+    // Award bonus to referralEarnings (kept separate from main balance until payout threshold)
+    const bonusAmt = refConfig.bonusAmount || 25.0;
     const updatedUser: User = {
       ...user,
-      balance: user.balance + 25.0
+      referralEarnings: user.referralEarnings + bonusAmt
     };
 
     const userIdx = allUsers.findIndex((u) => u.userId === user.userId);
@@ -96,7 +99,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     onUserUpdated(updatedUser);
 
     setInviteeUsername('');
-    setSuccess(`Successfully invited @${recipient.username}! $25 bonus reward credited to your account.`);
+    setSuccess(`Successfully invited @${recipient.username}! $${bonusAmt} referral credit added to your referral balance.`);
   };
 
   return (
@@ -104,9 +107,11 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
       <div>
         <h2 className="text-xl font-bold text-white flex items-center space-x-2">
           <Users className="w-5 h-5 text-[#D4AF37]" />
-          <span>Invite Friends & Earn Rewards</span>
+          <span>Invite Friends & Referral Earnings</span>
         </h2>
-        <p className="text-xs text-slate-400 mt-1">Earn $25 USD bonus for every friend who joins Vaultix Income</p>
+        <p className="text-xs text-slate-400 mt-1">
+          Earn ${refConfig.bonusAmount} USD bonus for every friend who registers. Min. withdrawal threshold: ${refConfig.withdrawalThreshold}
+        </p>
       </div>
 
       <div className="bg-gradient-to-r from-[#141923] via-[#1D2432] to-[#141923] border border-[#D4AF37]/40 rounded-2xl p-6 shadow-xl space-y-4">
@@ -115,31 +120,39 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
             <Award className="w-6 h-6 text-[#D4AF37]" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">$25 Referral Bonus Reward</h3>
-            <p className="text-xs text-slate-300">Earn instant portfolio credit whenever a friend registers using your link or code.</p>
+            <h3 className="text-base font-bold text-white">${refConfig.bonusAmount} Referral Reward Bonus</h3>
+            <p className="text-xs text-slate-300">
+              Referral earnings are kept in a dedicated referral balance and unlock at ${refConfig.withdrawalThreshold}.
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#2A3447]">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-[#2A3447]">
           <div>
             <span className="text-xs text-slate-400">Total Referred Users</span>
             <div className="text-xl font-extrabold text-white mt-0.5">{referredUsers.length + invitations.length}</div>
           </div>
           <div>
-            <span className="text-xs text-slate-400">Referral Rewards Earned</span>
+            <span className="text-xs text-slate-400">Dedicated Referral Balance</span>
             <div className="text-xl font-extrabold text-[#10B981] mt-0.5">
-              +${((referredUsers.length + invitations.length) * 25).toFixed(2)}
+              ${user.referralEarnings.toFixed(2)}
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-slate-400">Payout Threshold</span>
+            <div className="text-xl font-extrabold text-[#06B6D4] mt-0.5">
+              ${refConfig.withdrawalThreshold.toFixed(2)}
             </div>
           </div>
         </div>
       </div>
 
       <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
-        <h3 className="text-sm font-bold text-white">Your Referral Share Tools</h3>
+        <h3 className="text-sm font-bold text-white">Your Unique Referral Tools</h3>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Your Unique Referral Code</label>
+            <label className="block text-xs font-medium text-slate-400 mb-1">Your Referral Code</label>
             <div className="flex items-center space-x-2">
               <input
                 type="text"
@@ -181,7 +194,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
       <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center space-x-2">
           <UserPlus className="w-4 h-4 text-[#06B6D4]" />
-          <span>Invite Existing User by Username</span>
+          <span>Invite Registered Member by Username</span>
         </h3>
 
         {error && (
@@ -203,7 +216,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
             type="text"
             value={inviteeUsername}
             onChange={(e) => setInviteeUsername(e.target.value)}
-            placeholder="Enter username (e.g. testuser01)"
+            placeholder="Enter username (e.g. sarah_crypto)"
             className="flex-1 bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#06B6D4]"
           />
           <button

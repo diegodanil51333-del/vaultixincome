@@ -2,6 +2,7 @@ import React from 'react';
 import { User } from '../types';
 import { getInvestments, getTransactions } from '../db';
 import { Wallet, TrendingUp, ShieldCheck, ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
+import { HowItWorks } from './HowItWorks';
 
 interface DashboardScreenProps {
   user: User;
@@ -47,16 +48,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
         {/* Financial Metrics Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[#2A3447]">
           <div>
-            <span className="text-[11px] text-slate-400 font-medium">Total Balance</span>
+            <span className="text-[11px] text-slate-400 font-medium">Main Balance</span>
             <div className="text-xl font-extrabold text-[#D4AF37] mt-0.5">
               ${user.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
 
           <div>
-            <span className="text-[11px] text-slate-400 font-medium">Total Deposits</span>
-            <div className="text-xl font-extrabold text-white mt-0.5">
-              ${user.totalDeposits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <span className="text-[11px] text-slate-400 font-medium">Referral Balance</span>
+            <div className="text-xl font-extrabold text-emerald-400 mt-0.5">
+              ${user.referralEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
 
@@ -75,6 +76,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           </div>
         </div>
       </div>
+
+      {/* How It Works Section */}
+      <HowItWorks />
 
       {/* Active Investment Vaults */}
       <div>
@@ -111,7 +115,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
 
                 <div className="flex items-center justify-between pt-2 border-t border-[#2A3447] text-xs">
                   <div>
-                    <span className="text-slate-400">Principal Amount:</span>
+                    <span className="text-slate-400">Principal:</span>
                     <span className="font-bold text-white ml-1.5">${inv.amount.toLocaleString()}</span>
                   </div>
                   <div>

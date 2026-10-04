@@ -1,24 +1,57 @@
-import React, { useState } from 'react';
-import { User, AuditLog } from '../types';
-import { getUsers, saveUsers, getAuditLogs, saveAuditLogs, getTransactions, saveTransactions } from '../db';
-import { ShieldAlert, Search, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, Transaction, AuditLog } from '../types';
+import {
+  getUsers, saveUsers, getTransactions, approveDepositTransaction, rejectDepositTransaction,
+  cancelDepositTransaction, getAuditLogs, saveAuditLogs, getWallets, saveWallets, getReferralConfig,
+  saveReferralConfig, getPlans, savePlans, getInvestments
+} from '../db';
+import { ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, RefreshCw, Layers, Sliders } from 'lucide-react';
 
 interface AdminScreenProps {
   currentAdmin: User;
 }
 
 export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
-  const [tab, setTab] = useState<'users' | 'audit'>('users');
+  const [tab, setTab] = useState<'users' | 'deposits' | 'wallets' | 'plans' | 'referral' | 'audit'>('users');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>(getUsers());
+  const [transactions, setTransactions] = useState<Transaction[]>(getTransactions());
+  const [wallets, setWallets] = useState<CryptoWalletConfig[]>(getWallets());
+  const [refConfig, setRefConfig] = useState<ReferralConfig>(getReferralConfig());
+  const [plans, setPlans] = useState<InvestmentPlan[]>(getPlans());
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(getAuditLogs());
 
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // Balance Adjust Form
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
+
+  // Alert Feedback
   const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const users = getUsers();
-  const auditLogs = getAuditLogs();
+  // REALTIME USER DETECTION: Auto-revalidate data every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUsers(getUsers());
+      setTransactions(getTransactions());
+      setAuditLogs(getAuditLogs());
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
+  const refreshData = () => {
+    setUsers(getUsers());
+    setTransactions(getTransactions());
+    setWallets(getWallets());
+    setRefConfig(getReferralConfig());
+    setPlans(getPlans());
+    setAuditLogs(getAuditLogs());
+  };
+
+  // Filtered Users Search (Username, Email, Account ID)
   const filteredUsers = users.filter((u) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -31,109 +64,199 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     );
   });
 
-  const handleToggleStatus = (targetUser: User) => {
-    const newStatus = targetUser.accountStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    const updatedUser: User = { ...targetUser, accountStatus: newStatus };
+  const pendingDeposits = transactions.filter((t) => t.type === 'DEPOSIT' && t.status === 'PENDING');
 
+  // Actions
+  const handleApproveDeposit = (txId: string) => {
+    try {
+      setError(null);
+      const res = approveDepositTransaction(currentAdmin, txId);
+      setMsg(`Deposit ${txId} successfully approved! Credited $${res.tx.amount.toFixed(2)} to @${res.user.username}.`);
+      refreshData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to approve deposit.');
+    }
+  };
+
+  const handleRejectDeposit = (txId: string) => {
+    try {
+      setError(null);
+      rejectDepositTransaction(currentAdmin, txId, rejectReason || 'Admin Rejection');
+      setMsg(`Deposit ${txId} rejected.`);
+      setRejectReason('');
+      refreshData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to reject deposit.');
+    }
+  };
+
+  const handleCancelDeposit = (txId: string) => {
+    try {
+      setError(null);
+      cancelDepositTransaction(currentAdmin, txId);
+      setMsg(`Deposit ${txId} cancelled.`);
+      refreshData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to cancel deposit.');
+    }
+  };
+
+  const handleToggleUserStatus = (targetUser: User) => {
+    const newStatus = targetUser.accountStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     const allUsers = getUsers();
     const idx = allUsers.findIndex((u) => u.userId === targetUser.userId);
     if (idx !== -1) {
-      allUsers[idx] = updatedUser;
+      allUsers[idx].accountStatus = newStatus;
       saveUsers(allUsers);
     }
 
-    const newLog: AuditLog = {
-      id: `LOG-${Math.floor(1000 + Math.random() * 9000)}`,
-      adminUsername: currentAdmin.username,
-      targetUsername: targetUser.username,
-      action: 'STATUS_TOGGLE',
-      details: `Changed status from ${targetUser.accountStatus} to ${newStatus}`,
-      timestamp: new Date().toISOString()
-    };
     const logs = getAuditLogs();
-    logs.unshift(newLog);
+    logs.unshift({
+      id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminId: currentAdmin.userId,
+      action: 'USER_STATUS_CHANGE',
+      targetUserId: targetUser.userId,
+      targetUsername: targetUser.username,
+      previousValue: targetUser.accountStatus,
+      newValue: newStatus,
+      timestamp: new Date().toISOString()
+    });
     saveAuditLogs(logs);
 
-    if (selectedUser?.userId === targetUser.userId) {
-      setSelectedUser(updatedUser);
-    }
     setMsg(`Account status for @${targetUser.username} set to ${newStatus}.`);
+    refreshData();
+    if (selectedUser?.userId === targetUser.userId) {
+      setSelectedUser({ ...targetUser, accountStatus: newStatus });
+    }
   };
 
   const handleAdjustBalance = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
 
-    const amount = Number(adjustAmount);
-    if (isNaN(amount) || amount === 0) {
-      alert('Please enter a non-zero adjustment amount.');
+    const amt = Number(adjustAmount);
+    if (isNaN(amt) || amt === 0) {
+      setError('Please enter a valid non-zero adjustment amount.');
       return;
     }
-
-    const updatedUser: User = {
-      ...selectedUser,
-      balance: selectedUser.balance + amount
-    };
 
     const allUsers = getUsers();
     const idx = allUsers.findIndex((u) => u.userId === selectedUser.userId);
     if (idx !== -1) {
-      allUsers[idx] = updatedUser;
+      const oldBal = allUsers[idx].balance;
+      allUsers[idx].balance += amt;
       saveUsers(allUsers);
+
+      const logs = getAuditLogs();
+      logs.unshift({
+        id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+        adminId: currentAdmin.userId,
+        action: 'BALANCE_ADJUST',
+        targetUserId: selectedUser.userId,
+        targetUsername: selectedUser.username,
+        previousValue: `$${oldBal.toFixed(2)}`,
+        newValue: `$${allUsers[idx].balance.toFixed(2)}`,
+        reason: adjustNote || 'Manual Balance Adjustment',
+        timestamp: new Date().toISOString()
+      });
+      saveAuditLogs(logs);
+
+      setSelectedUser({ ...allUsers[idx] });
+      setAdjustAmount('');
+      setAdjustNote('');
+      setMsg(`Adjusted balance for @${selectedUser.username} by $${amt.toFixed(2)}.`);
+      refreshData();
     }
+  };
+
+  const handleSaveWallets = (updatedWallets: CryptoWalletConfig[]) => {
+    saveWallets(updatedWallets);
+    setWallets(updatedWallets);
 
     const logs = getAuditLogs();
     logs.unshift({
-      id: `LOG-${Math.floor(1000 + Math.random() * 9000)}`,
-      adminUsername: currentAdmin.username,
-      targetUsername: selectedUser.username,
-      action: 'BALANCE_ADJUST',
-      details: `Adjusted balance by $${amount.toFixed(2)}. Reason: ${adjustNote || 'Admin Adjustment'}`,
+      id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminId: currentAdmin.userId,
+      action: 'WALLET_CONFIG_CHANGED',
+      targetUserId: 'SYSTEM',
+      targetUsername: 'ALL_WALLETS',
+      newValue: 'Updated Crypto Wallet Addresses',
       timestamp: new Date().toISOString()
     });
     saveAuditLogs(logs);
 
-    const txs = getTransactions();
-    txs.unshift({
-      id: `TX-${Math.floor(10000 + Math.random() * 90000)}`,
-      userId: selectedUser.userId,
-      type: amount > 0 ? 'ADMIN_CREDIT' : 'ADMIN_DEBIT',
-      amount: Math.abs(amount),
-      status: 'COMPLETED',
-      timestamp: new Date().toISOString(),
-      note: `Admin Credit: ${adjustNote || 'Manual Balance Adjustment'}`
-    });
-    saveTransactions(txs);
+    setMsg('Crypto wallet configuration saved successfully!');
+  };
 
-    setSelectedUser(updatedUser);
-    setAdjustAmount('');
-    setAdjustNote('');
-    setMsg(`Successfully adjusted balance for @${selectedUser.username} by $${amount.toFixed(2)}.`);
+  const handleSaveReferralConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveReferralConfig(refConfig);
+    setMsg('Referral parameters updated server-side!');
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Admin Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-purple-400 flex items-center space-x-2">
             <ShieldAlert className="w-5 h-5" />
             <span>Administrator Control Center</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">Platform management, directory search, and financial adjustments</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Realtime user directory, deposit authorization, wallets, and audit logs
+          </p>
         </div>
 
-        <div className="flex border border-[#2A3447] rounded-xl overflow-hidden bg-[#141923]">
+        <div className="flex flex-wrap gap-1 bg-[#141923] border border-[#2A3447] p-1 rounded-xl">
           <button
             onClick={() => setTab('users')}
-            className={`px-4 py-2 text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               tab === 'users' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
             }`}
           >
-            User Directory
+            Users ({users.length})
+          </button>
+          <button
+            onClick={() => setTab('deposits')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all relative ${
+              tab === 'deposits' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Pending Deposits ({pendingDeposits.length})
+            {pendingDeposits.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 text-[9px] bg-amber-500 text-black font-extrabold rounded-full">
+                {pendingDeposits.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setTab('wallets')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tab === 'wallets' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Wallets & XRP
+          </button>
+          <button
+            onClick={() => setTab('plans')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tab === 'plans' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Plans
+          </button>
+          <button
+            onClick={() => setTab('referral')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tab === 'referral' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Referral Config
           </button>
           <button
             onClick={() => setTab('audit')}
-            className={`px-4 py-2 text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               tab === 'audit' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -143,13 +266,27 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
       </div>
 
       {msg && (
-        <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs p-3 rounded-xl flex items-center justify-between">
-          <span>{msg}</span>
+        <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs p-3.5 rounded-xl flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="w-4 h-4 shrink-0" />
+            <span>{msg}</span>
+          </div>
           <button onClick={() => setMsg(null)}><X className="w-4 h-4" /></button>
         </div>
       )}
 
-      {tab === 'users' ? (
+      {error && (
+        <div className="bg-rose-500/15 border border-rose-500/40 text-rose-400 text-xs p-3.5 rounded-xl flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button onClick={() => setError(null)}><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {/* TAB 1: Realtime Users Directory */}
+      {tab === 'users' && (
         <div className="space-y-4">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500" />
@@ -157,14 +294,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users by Username, Email, Account ID, User ID, or Name..."
+              placeholder="Search users by Username, Email, or Account ID..."
               className="w-full bg-[#141923] border border-[#2A3447] rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-purple-400"
             />
           </div>
 
           <div className="bg-[#141923] border border-[#2A3447] rounded-2xl overflow-hidden divide-y divide-[#2A3447]">
             {filteredUsers.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400">No matching user accounts found.</div>
+              <div className="p-8 text-center text-xs text-slate-400">No user accounts found matching query.</div>
             ) : (
               filteredUsers.map((u) => (
                 <div key={u.userId} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#1D2432]/50 transition-colors">
@@ -183,18 +320,18 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 self-end sm:self-auto">
+                  <div className="flex items-center space-x-2">
                     <div className="text-right mr-2">
                       <div className="text-xs font-bold text-[#D4AF37]">${u.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-                      <div className="text-[10px] text-slate-400">Portfolio</div>
+                      <div className="text-[10px] text-slate-400">Balance</div>
                     </div>
 
                     <button
-                      onClick={() => handleToggleStatus(u)}
+                      onClick={() => handleToggleUserStatus(u)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         u.accountStatus === 'ACTIVE'
-                          ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30'
-                          : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                          ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25'
+                          : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
                       }`}
                     >
                       {u.accountStatus === 'ACTIVE' ? 'Suspend' : 'Activate'}
@@ -202,9 +339,9 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
 
                     <button
                       onClick={() => setSelectedUser(u)}
-                      className="bg-purple-500 hover:bg-purple-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-all shadow-md"
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-all"
                     >
-                      Inspect Profile
+                      Profile Details
                     </button>
                   </div>
                 </div>
@@ -212,28 +349,320 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
             )}
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* TAB 2: Pending Deposit Approvals */}
+      {tab === 'deposits' && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+            <DollarSign className="w-4 h-4 text-amber-400" />
+            <span>Pending Deposit Verification Requests ({pendingDeposits.length})</span>
+          </h3>
+
+          {pendingDeposits.length === 0 ? (
+            <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-8 text-center text-xs text-slate-400">
+              No pending deposit requests awaiting authorization.
+            </div>
+          ) : (
+            <div className="bg-[#141923] border border-[#2A3447] rounded-2xl divide-y divide-[#2A3447] overflow-hidden">
+              {pendingDeposits.map((tx) => {
+                const targetUser = users.find((u) => u.userId === tx.userId);
+                return (
+                  <div key={tx.id} className="p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-xs font-bold text-[#D4AF37]">{tx.id}</span>
+                          <span className="text-xs text-white font-bold">@{targetUser?.username || tx.userId}</span>
+                          <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                            PENDING
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          Amount: <span className="text-emerald-400 font-bold">${tx.amount.toFixed(2)} {tx.currency}</span> • Date: {new Date(tx.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleApproveDeposit(tx.id)}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleRejectDeposit(tx.id)}
+                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => handleCancelDeposit(tx.id)}
+                          className="bg-[#2A3447] hover:bg-slate-600 text-slate-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: Crypto Wallets & XRP Control */}
+      {tab === 'wallets' && (
+        <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-6">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+              <Wallet className="w-4 h-4 text-purple-400" />
+              <span>Configure Admin Crypto Wallets (Includes XRP)</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">Configure wallet addresses, networks, and XRP Destination Tags</p>
+          </div>
+
+          <div className="space-y-4">
+            {wallets.map((w, idx) => (
+              <div key={w.symbol} className="bg-[#1D2432] border border-[#2A3447] rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-sm">{w.name} ({w.symbol})</span>
+                  <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={w.isActive}
+                      onChange={(e) => {
+                        const next = [...wallets];
+                        next[idx].isActive = e.target.checked;
+                        setWallets(next);
+                      }}
+                      className="rounded accent-purple-500"
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Network</label>
+                    <input
+                      type="text"
+                      value={w.network}
+                      onChange={(e) => {
+                        const next = [...wallets];
+                        next[idx].network = e.target.value;
+                        setWallets(next);
+                      }}
+                      className="w-full bg-[#0B0E14] border border-[#2A3447] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Wallet Address</label>
+                    <input
+                      type="text"
+                      value={w.address}
+                      onChange={(e) => {
+                        const next = [...wallets];
+                        next[idx].address = e.target.value;
+                        setWallets(next);
+                      }}
+                      className="w-full bg-[#0B0E14] border border-[#2A3447] rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                </div>
+
+                {w.symbol === 'XRP' && (
+                  <div>
+                    <label className="block text-xs text-amber-400 font-bold mb-1">XRP Destination Tag / Memo</label>
+                    <input
+                      type="text"
+                      value={w.destinationTag || ''}
+                      onChange={(e) => {
+                        const next = [...wallets];
+                        next[idx].destinationTag = e.target.value;
+                        setWallets(next);
+                      }}
+                      placeholder="e.g. 908124"
+                      className="w-full bg-[#0B0E14] border border-amber-500/40 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <button
+              onClick={() => handleSaveWallets(wallets)}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-md"
+            >
+              SAVE CRYPTO WALLET CONFIGURATIONS
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Investment Plans Config */}
+      {tab === 'plans' && (
+        <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
+          <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+            <Layers className="w-4 h-4 text-purple-400" />
+            <span>Investment Plans Configuration ($10 – $100,000)</span>
+          </h3>
+
+          <div className="space-y-3">
+            {plans.map((p, idx) => (
+              <div key={p.id} className="bg-[#1D2432] border border-[#2A3447] rounded-xl p-4 space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white">{p.name} ({p.asset})</span>
+                  <label className="flex items-center space-x-2 text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={p.isActive}
+                      onChange={(e) => {
+                        const next = [...plans];
+                        next[idx].isActive = e.target.checked;
+                        setPlans(next);
+                        savePlans(next);
+                      }}
+                      className="rounded accent-purple-500"
+                    />
+                    <span>Active Plan</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <span className="text-slate-400 block">Min ($)</span>
+                    <input
+                      type="number"
+                      value={p.minDeposit}
+                      onChange={(e) => {
+                        const next = [...plans];
+                        next[idx].minDeposit = Number(e.target.value);
+                        setPlans(next);
+                        savePlans(next);
+                      }}
+                      className="w-full bg-[#0B0E14] border border-[#2A3447] rounded px-2 py-1 text-white"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Max ($)</span>
+                    <input
+                      type="number"
+                      value={p.maxDeposit}
+                      onChange={(e) => {
+                        const next = [...plans];
+                        next[idx].maxDeposit = Number(e.target.value);
+                        setPlans(next);
+                        savePlans(next);
+                      }}
+                      className="w-full bg-[#0B0E14] border border-[#2A3447] rounded px-2 py-1 text-white"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Daily Yield %</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={p.dailyYield}
+                      onChange={(e) => {
+                        const next = [...plans];
+                        next[idx].dailyYield = Number(e.target.value);
+                        setPlans(next);
+                        savePlans(next);
+                      }}
+                      className="w-full bg-[#0B0E14] border border-[#2A3447] rounded px-2 py-1 text-white"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Lock Days</span>
+                    <input
+                      type="number"
+                      value={p.lockDays}
+                      onChange={(e) => {
+                        const next = [...plans];
+                        next[idx].lockDays = Number(e.target.value);
+                        setPlans(next);
+                        savePlans(next);
+                      }}
+                      className="w-full bg-[#0B0E14] border border-[#2A3447] rounded px-2 py-1 text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: Referral Config */}
+      {tab === 'referral' && (
+        <form onSubmit={handleSaveReferralConfig} className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
+          <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+            <Sliders className="w-4 h-4 text-purple-400" />
+            <span>Central Referral Rules & Withdrawal Threshold</span>
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Referral Reward Bonus ($)</label>
+              <input
+                type="number"
+                value={refConfig.bonusAmount}
+                onChange={(e) => setRefConfig({ ...refConfig, bonusAmount: Number(e.target.value) })}
+                className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Referral Withdrawal Threshold ($)</label>
+              <input
+                type="number"
+                value={refConfig.withdrawalThreshold}
+                onChange={(e) => setRefConfig({ ...refConfig, withdrawalThreshold: Number(e.target.value) })}
+                className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-400"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-md"
+          >
+            SAVE REFERRAL CONFIGURATION
+          </button>
+        </form>
+      )}
+
+      {/* TAB 6: Administrative Audit Logs */}
+      {tab === 'audit' && (
         <div className="bg-[#141923] border border-[#2A3447] rounded-2xl overflow-hidden divide-y divide-[#2A3447]">
           {auditLogs.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-400">No administrator audit actions recorded yet.</div>
+            <div className="p-8 text-center text-xs text-slate-400">No admin audit log actions recorded.</div>
           ) : (
             auditLogs.map((log) => (
               <div key={log.id} className="p-4 space-y-1 text-xs">
                 <div className="flex items-center justify-between text-slate-400 text-[10px]">
-                  <span>Action ID: {log.id} • Admin: @{log.adminUsername}</span>
+                  <span>Audit ID: {log.id} • Admin ID: {log.adminId}</span>
                   <span>{new Date(log.timestamp).toLocaleString()}</span>
                 </div>
-                <div className="font-bold text-white">Target User: @{log.targetUsername} ({log.action})</div>
-                <div className="text-slate-300 text-[11px]">{log.details}</div>
+                <div className="font-bold text-white">Target: @{log.targetUsername} ({log.action})</div>
+                <div className="text-slate-300 text-[11px]">
+                  {log.previousValue && `Previous: ${log.previousValue} -> `}
+                  {log.newValue && `New: ${log.newValue}`}
+                  {log.reason && ` Reason: ${log.reason}`}
+                </div>
               </div>
             ))
           )}
         </div>
       )}
 
+      {/* User Full Profile Inspection Modal */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#141923] border border-[#2A3447] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
+          <div className="bg-[#141923] border border-[#2A3447] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setSelectedUser(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white"
@@ -243,7 +672,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
 
             <h3 className="text-base font-bold text-white flex items-center space-x-2">
               <ShieldAlert className="w-5 h-5 text-purple-400" />
-              <span>User Profile & Balance Controls</span>
+              <span>Full User Profile Inspection</span>
             </h3>
 
             <div className="bg-[#1D2432] border border-[#2A3447] rounded-xl p-4 space-y-2 text-xs">
@@ -251,11 +680,16 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
               <div className="flex justify-between"><span className="text-slate-400">Full Name:</span><span className="text-white">{selectedUser.fullName}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">Email:</span><span className="text-white">{selectedUser.email}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">Account ID:</span><span className="font-mono text-[#D4AF37]">{selectedUser.accountId}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">Current Balance:</span><span className="font-extrabold text-emerald-400">${selectedUser.balance.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">User ID:</span><span className="font-mono text-slate-300">{selectedUser.userId}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Registration Date:</span><span className="text-slate-300">{new Date(selectedUser.createdAt).toLocaleDateString()}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Account Status:</span><span className="font-bold text-emerald-400">{selectedUser.accountStatus}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Main Balance:</span><span className="font-extrabold text-[#D4AF37]">${selectedUser.balance.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Referral Earnings:</span><span className="font-bold text-emerald-400">${selectedUser.referralEarnings.toFixed(2)}</span></div>
             </div>
 
+            {/* Adjust Balance Form */}
             <form onSubmit={handleAdjustBalance} className="space-y-3 pt-2 border-t border-[#2A3447]">
-              <h4 className="text-xs font-bold text-white">Adjust User Balance ($ USD)</h4>
+              <h4 className="text-xs font-bold text-white">Modify User Balance ($ USD)</h4>
               <input
                 type="number"
                 step="any"
@@ -269,7 +703,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                 type="text"
                 value={adjustNote}
                 onChange={(e) => setAdjustNote(e.target.value)}
-                placeholder="Reason / Audit note"
+                placeholder="Reason for balance modification"
                 className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
               />
               <button

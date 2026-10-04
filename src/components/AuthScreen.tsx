@@ -111,6 +111,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       role: 'USER',
       accountStatus: 'ACTIVE',
       balance: 1000.0,
+      referralEarnings: 0,
       totalDeposits: 1000.0,
       totalInvestments: 0,
       totalProfitLoss: 0,

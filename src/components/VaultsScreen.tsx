@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { User, InvestmentPlan, UserInvestment, Transaction } from '../types';
-import { INVESTMENT_PLANS, getUsers, saveUsers, getInvestments, saveInvestments, getTransactions, saveTransactions, saveCurrentSession } from '../db';
+import { User, InvestmentPlan } from '../types';
+import { getPlans, subscribeInvestmentPlan } from '../db';
 import { TrendingUp, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
 
 interface VaultsScreenProps {
@@ -9,8 +9,9 @@ interface VaultsScreenProps {
 }
 
 export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated }) => {
-  const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan>(INVESTMENT_PLANS[0]);
-  const [depositAmount, setDepositAmount] = useState<number>(INVESTMENT_PLANS[0].minDeposit);
+  const activePlans = getPlans().filter((p) => p.isActive);
+  const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan>(activePlans[0] || getPlans()[0]);
+  const [depositAmount, setDepositAmount] = useState<number>(selectedPlan.minDeposit);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -21,67 +22,14 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
     setError(null);
     setSuccess(null);
 
-    if (depositAmount < selectedPlan.minDeposit) {
-      setError(`Minimum deposit for ${selectedPlan.name} is $${selectedPlan.minDeposit}.`);
-      return;
+    try {
+      // Execute server-side subscription engine
+      const res = subscribeInvestmentPlan(user, selectedPlan.id, depositAmount);
+      onUserUpdated(res.user);
+      setSuccess(`Successfully subscribed $${depositAmount} to ${selectedPlan.name}! Daily return: +$${res.inv.dailyReturn.toFixed(2)}/day.`);
+    } catch (err: any) {
+      setError(err.message || 'Subscription failed.');
     }
-
-    if (depositAmount > selectedPlan.maxDeposit) {
-      setError(`Maximum deposit limit is $${selectedPlan.maxDeposit}.`);
-      return;
-    }
-
-    if (user.balance < depositAmount) {
-      setError(`Insufficient account balance. Current balance: $${user.balance.toFixed(2)}.`);
-      return;
-    }
-
-    const updatedUser: User = {
-      ...user,
-      balance: user.balance - depositAmount,
-      totalInvestments: user.totalInvestments + depositAmount
-    };
-
-    const users = getUsers();
-    const idx = users.findIndex((u) => u.userId === user.userId);
-    if (idx !== -1) {
-      users[idx] = updatedUser;
-      saveUsers(users);
-    }
-
-    const newInvestment: UserInvestment = {
-      id: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-      userId: user.userId,
-      planId: selectedPlan.id,
-      planName: selectedPlan.name,
-      asset: selectedPlan.asset,
-      amount: depositAmount,
-      dailyReturn: dailyReturn,
-      startDate: new Date().toISOString(),
-      status: 'ACTIVE'
-    };
-
-    const investments = getInvestments();
-    investments.push(newInvestment);
-    saveInvestments(investments);
-
-    const newTx: Transaction = {
-      id: `TX-${Math.floor(10000 + Math.random() * 90000)}`,
-      userId: user.userId,
-      type: 'YIELD',
-      amount: depositAmount,
-      status: 'COMPLETED',
-      timestamp: new Date().toISOString(),
-      note: `Subscribed to ${selectedPlan.name}`
-    };
-
-    const transactions = getTransactions();
-    transactions.unshift(newTx);
-    saveTransactions(transactions);
-
-    saveCurrentSession(updatedUser);
-    onUserUpdated(updatedUser);
-    setSuccess(`Successfully subscribed $${depositAmount} to ${selectedPlan.name}!`);
   };
 
   return (
@@ -91,7 +39,9 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
           <TrendingUp className="w-5 h-5 text-[#D4AF37]" />
           <span>Yield Vault Strategies</span>
         </h2>
-        <p className="text-xs text-slate-400 mt-1">Automated compounding digital asset management plans</p>
+        <p className="text-xs text-slate-400 mt-1">
+          Automated compounding digital asset management plans ranging from $10 to $100,000
+        </p>
       </div>
 
       {error && (
@@ -108,8 +58,8 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {INVESTMENT_PLANS.map((plan) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {activePlans.map((plan) => {
           const isSelected = selectedPlan.id === plan.id;
           return (
             <div
@@ -126,7 +76,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-white text-base">{plan.name}</h3>
+                  <h3 className="font-bold text-white text-sm">{plan.name}</h3>
                   <span className="text-xs text-[#D4AF37] font-semibold">{plan.asset} Base Asset</span>
                 </div>
                 <div className="text-right">
@@ -143,12 +93,12 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
                   <span className="font-bold text-white">${plan.minDeposit}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Lock Period</span>
-                  <span className="font-bold text-white">{plan.lockDays} Days</span>
+                  <span className="text-slate-400 block">Max Limit</span>
+                  <span className="font-bold text-white">${plan.maxDeposit.toLocaleString()}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Risk Profile</span>
-                  <span className="font-bold text-[#06B6D4]">{plan.riskLevel}</span>
+                  <span className="text-slate-400 block">Lock Period</span>
+                  <span className="font-bold text-[#06B6D4]">{plan.lockDays} Days</span>
                 </div>
               </div>
             </div>
@@ -166,7 +116,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
           <div>
             <div className="flex justify-between text-xs text-slate-300 mb-1">
               <span>Deposit Amount ($)</span>
-              <span>Account Balance: ${user.balance.toFixed(2)}</span>
+              <span>Available Balance: ${user.balance.toFixed(2)}</span>
             </div>
             <input
               type="number"
@@ -180,12 +130,12 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
 
           <div className="bg-[#1D2432] border border-[#2A3447] rounded-xl p-4 flex items-center justify-between text-xs">
             <div>
-              <span className="text-slate-400 block">Estimated Daily Yield</span>
+              <span className="text-slate-400 block">Estimated Daily Return</span>
               <span className="text-base font-extrabold text-[#10B981]">+${dailyReturn.toFixed(2)} / day</span>
             </div>
             <div className="text-right">
-              <span className="text-slate-400 block">14-Day Projected Return</span>
-              <span className="text-base font-extrabold text-[#D4AF37]">+${(dailyReturn * 14).toFixed(2)}</span>
+              <span className="text-slate-400 block">{selectedPlan.lockDays}-Day Total Projected Return</span>
+              <span className="text-base font-extrabold text-[#D4AF37]">+${(dailyReturn * selectedPlan.lockDays).toFixed(2)}</span>
             </div>
           </div>
 

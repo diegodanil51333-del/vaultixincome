@@ -8,12 +8,29 @@ export interface User {
   role: 'ADMIN' | 'USER';
   accountStatus: 'ACTIVE' | 'SUSPENDED';
   balance: number;
+  referralEarnings: number;
   totalDeposits: number;
   totalInvestments: number;
   totalProfitLoss: number;
   referralCode: string;
   referredByUsername?: string;
   createdAt: string;
+}
+
+export interface CryptoWalletConfig {
+  symbol: 'BTC' | 'ETH' | 'USDT' | 'SOL' | 'XRP';
+  name: string;
+  network: string;
+  address: string;
+  destinationTag?: string;
+  instructions: string;
+  isActive: boolean;
+}
+
+export interface ReferralConfig {
+  bonusAmount: number;
+  withdrawalThreshold: number;
+  isActive: boolean;
 }
 
 export interface InvestmentPlan {
@@ -26,6 +43,7 @@ export interface InvestmentPlan {
   lockDays: number;
   riskLevel: 'Conservative' | 'Moderate' | 'High Yield';
   description: string;
+  isActive: boolean;
 }
 
 export interface UserInvestment {
@@ -37,16 +55,22 @@ export interface UserInvestment {
   amount: number;
   dailyReturn: number;
   startDate: string;
+  durationDays: number;
   status: 'ACTIVE' | 'COMPLETED';
 }
+
+export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'YIELD' | 'REFERRAL_REWARD' | 'ADMIN_CREDIT' | 'ADMIN_DEBIT';
+export type TransactionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED';
 
 export interface Transaction {
   id: string;
   userId: string;
-  type: 'DEPOSIT' | 'WITHDRAWAL' | 'YIELD' | 'REFERRAL_REWARD' | 'ADMIN_CREDIT' | 'ADMIN_DEBIT';
+  type: TransactionType;
   amount: number;
-  status: 'COMPLETED' | 'PENDING' | 'REJECTED';
+  currency: string;
+  status: TransactionStatus;
   timestamp: string;
+  processedAt?: string;
   note: string;
 }
 
@@ -61,10 +85,14 @@ export interface Invitation {
 
 export interface AuditLog {
   id: string;
-  adminUsername: string;
-  targetUsername: string;
+  adminId: string;
   action: string;
-  details: string;
+  targetUserId: string;
+  targetUsername: string;
+  transactionId?: string;
+  previousValue?: string;
+  newValue?: string;
+  reason?: string;
   timestamp: string;
 }
 
