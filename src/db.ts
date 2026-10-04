@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v4';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v4';
-const INVESTMENTS_KEY = 'vaultix_investments_v4';
-const INVITATIONS_KEY = 'vaultix_invitations_v4';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v4';
-const WALLETS_KEY = 'vaultix_wallets_v4';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v4';
-const PLANS_KEY = 'vaultix_plans_v4';
-const SESSION_KEY = 'vaultix_session_v4';
+const USERS_KEY = 'vaultix_users_v5';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v5';
+const INVESTMENTS_KEY = 'vaultix_investments_v5';
+const INVITATIONS_KEY = 'vaultix_invitations_v5';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v5';
+const WALLETS_KEY = 'vaultix_wallets_v5';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v5';
+const PLANS_KEY = 'vaultix_plans_v5';
+const SESSION_KEY = 'vaultix_session_v5';
 
 // System Default Configurations
 export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
@@ -126,6 +126,7 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
 
 export function initializeDatabase() {
   if (!localStorage.getItem(USERS_KEY)) {
+    // SEED ADMIN: Zero fake hardcoded balances!
     const seedAdmin: User = {
       userId: 'USR-000001',
       accountId: 'VX-100001',
@@ -135,16 +136,15 @@ export function initializeDatabase() {
       passwordHash: 'VaultixAdmin2026!Secured',
       role: 'ADMIN',
       accountStatus: 'ACTIVE',
-      balance: 250000.0,
-      referralEarnings: 500.0,
-      totalDeposits: 250000.0,
-      totalInvestments: 100000.0,
-      totalProfitLoss: 34500.0,
+      balance: 0.0,
+      referralEarnings: 0.0,
+      totalDeposits: 0.0,
+      totalInvestments: 0.0,
+      totalProfitLoss: 0.0,
       referralCode: 'VXREF-ADMIN',
       createdAt: new Date().toISOString()
     };
 
-    // REQUIREMENT 1: Standard seed users start with $0.00 until deposit is approved
     const seedUser: User = {
       userId: 'USR-000002',
       accountId: 'VX-100002',
@@ -155,7 +155,7 @@ export function initializeDatabase() {
       role: 'USER',
       accountStatus: 'ACTIVE',
       balance: 0.0,
-      referralEarnings: 50.0,
+      referralEarnings: 0.0,
       totalDeposits: 0.0,
       totalInvestments: 0.0,
       totalProfitLoss: 0.0,
@@ -163,26 +163,7 @@ export function initializeDatabase() {
       createdAt: new Date().toISOString()
     };
 
-    const seedUser2: User = {
-      userId: 'USR-000003',
-      accountId: 'VX-100003',
-      username: 'sarah_crypto',
-      fullName: 'Sarah Jenkins',
-      email: 'sarah@vaultix.com',
-      passwordHash: 'password123',
-      role: 'USER',
-      accountStatus: 'ACTIVE',
-      balance: 0.0,
-      referralEarnings: 5.0,
-      totalDeposits: 0.0,
-      totalInvestments: 0.0,
-      totalProfitLoss: 0.0,
-      referralCode: 'VXREF-3341',
-      referredByUsername: 'testuser01',
-      createdAt: new Date().toISOString()
-    };
-
-    localStorage.setItem(USERS_KEY, JSON.stringify([seedAdmin, seedUser, seedUser2]));
+    localStorage.setItem(USERS_KEY, JSON.stringify([seedAdmin, seedUser]));
     localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([]));
     localStorage.setItem(INVESTMENTS_KEY, JSON.stringify([]));
     localStorage.setItem(INVITATIONS_KEY, JSON.stringify([]));
@@ -193,11 +174,16 @@ export function initializeDatabase() {
   }
 }
 
-// Data Accessors
+// --- DATA ACCESSORS WITH FAIL-SAFE SESSION PERSISTENCE ---
+
 export function getUsers(): User[] {
-  processMaturedInvestments();
-  const d = localStorage.getItem(USERS_KEY);
-  return d ? JSON.parse(d) : [];
+  try {
+    processMaturedInvestments();
+    const d = localStorage.getItem(USERS_KEY);
+    return d ? JSON.parse(d) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function saveUsers(users: User[]) {
@@ -205,8 +191,12 @@ export function saveUsers(users: User[]) {
 }
 
 export function getTransactions(): Transaction[] {
-  const d = localStorage.getItem(TRANSACTIONS_KEY);
-  return d ? JSON.parse(d) : [];
+  try {
+    const d = localStorage.getItem(TRANSACTIONS_KEY);
+    return d ? JSON.parse(d) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function saveTransactions(txs: Transaction[]) {
@@ -214,8 +204,12 @@ export function saveTransactions(txs: Transaction[]) {
 }
 
 export function getInvestments(): UserInvestment[] {
-  const d = localStorage.getItem(INVESTMENTS_KEY);
-  return d ? JSON.parse(d) : [];
+  try {
+    const d = localStorage.getItem(INVESTMENTS_KEY);
+    return d ? JSON.parse(d) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function saveInvestments(invs: UserInvestment[]) {
@@ -223,8 +217,12 @@ export function saveInvestments(invs: UserInvestment[]) {
 }
 
 export function getInvitations(): Invitation[] {
-  const d = localStorage.getItem(INVITATIONS_KEY);
-  return d ? JSON.parse(d) : [];
+  try {
+    const d = localStorage.getItem(INVITATIONS_KEY);
+    return d ? JSON.parse(d) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function saveInvitations(invs: Invitation[]) {
@@ -232,8 +230,12 @@ export function saveInvitations(invs: Invitation[]) {
 }
 
 export function getAuditLogs(): AuditLog[] {
-  const d = localStorage.getItem(AUDIT_LOGS_KEY);
-  return d ? JSON.parse(d) : [];
+  try {
+    const d = localStorage.getItem(AUDIT_LOGS_KEY);
+    return d ? JSON.parse(d) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function saveAuditLogs(logs: AuditLog[]) {
@@ -241,8 +243,12 @@ export function saveAuditLogs(logs: AuditLog[]) {
 }
 
 export function getWallets(): CryptoWalletConfig[] {
-  const d = localStorage.getItem(WALLETS_KEY);
-  return d ? JSON.parse(d) : DEFAULT_WALLETS;
+  try {
+    const d = localStorage.getItem(WALLETS_KEY);
+    return d ? JSON.parse(d) : DEFAULT_WALLETS;
+  } catch {
+    return DEFAULT_WALLETS;
+  }
 }
 
 export function saveWallets(wallets: CryptoWalletConfig[]) {
@@ -250,8 +256,12 @@ export function saveWallets(wallets: CryptoWalletConfig[]) {
 }
 
 export function getReferralConfig(): ReferralConfig {
-  const d = localStorage.getItem(REFERRAL_CONFIG_KEY);
-  return d ? JSON.parse(d) : DEFAULT_REFERRAL_CONFIG;
+  try {
+    const d = localStorage.getItem(REFERRAL_CONFIG_KEY);
+    return d ? JSON.parse(d) : DEFAULT_REFERRAL_CONFIG;
+  } catch {
+    return DEFAULT_REFERRAL_CONFIG;
+  }
 }
 
 export function saveReferralConfig(cfg: ReferralConfig) {
@@ -259,25 +269,37 @@ export function saveReferralConfig(cfg: ReferralConfig) {
 }
 
 export function getPlans(): InvestmentPlan[] {
-  const d = localStorage.getItem(PLANS_KEY);
-  return d ? JSON.parse(d) : DEFAULT_INVESTMENT_PLANS;
+  try {
+    const d = localStorage.getItem(PLANS_KEY);
+    return d ? JSON.parse(d) : DEFAULT_INVESTMENT_PLANS;
+  } catch {
+    return DEFAULT_INVESTMENT_PLANS;
+  }
 }
 
 export function savePlans(plans: InvestmentPlan[]) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
 }
 
+// CRITICAL: Fail-safe Session Persistence across refreshes & tab reloads
 export function getCurrentSession(): User | null {
-  processMaturedInvestments();
   const d = localStorage.getItem(SESSION_KEY);
   if (!d) return null;
 
   try {
-    const sessionUser = JSON.parse(d);
-    // Always resolve latest state from USERS_KEY database to prevent stale balance bug on refresh!
-    const users = getUsers();
-    const freshUser = users.find((u) => u.userId === sessionUser.userId);
-    return freshUser || sessionUser;
+    const sessionUser: User = JSON.parse(d);
+    if (!sessionUser || !sessionUser.userId) return null;
+
+    // Fetch fresh user record from USERS_KEY database
+    const usersStr = localStorage.getItem(USERS_KEY);
+    if (usersStr) {
+      const users: User[] = JSON.parse(usersStr);
+      const freshUser = users.find((u) => u.userId === sessionUser.userId);
+      if (freshUser) {
+        return freshUser;
+      }
+    }
+    return sessionUser;
   } catch {
     return null;
   }
@@ -291,84 +313,82 @@ export function saveCurrentSession(user: User | null) {
   }
 }
 
-// --- REQUIREMENT 5 & 6: AUTOMATIC INVESTMENT MATURITY & PROFIT ENGINE (PREVENTS DUPLICATE PROFIT PAYMENTS) ---
+// --- REQUIREMENT 5 & 6: AUTOMATIC INVESTMENT MATURITY & PROFIT ENGINE ---
 
 export function processMaturedInvestments() {
-  const invsStr = localStorage.getItem(INVESTMENTS_KEY);
-  if (!invsStr) return;
+  try {
+    const invsStr = localStorage.getItem(INVESTMENTS_KEY);
+    if (!invsStr) return;
 
-  const invs: UserInvestment[] = JSON.parse(invsStr);
-  const activeInvs = invs.filter((inv) => inv.status === 'ACTIVE');
+    const invs: UserInvestment[] = JSON.parse(invsStr);
+    const activeInvs = invs.filter((inv) => inv.status === 'ACTIVE');
 
-  if (activeInvs.length === 0) return;
+    if (activeInvs.length === 0) return;
 
-  const usersStr = localStorage.getItem(USERS_KEY);
-  if (!usersStr) return;
-  const users: User[] = JSON.parse(usersStr);
+    const usersStr = localStorage.getItem(USERS_KEY);
+    if (!usersStr) return;
+    const users: User[] = JSON.parse(usersStr);
 
-  const txsStr = localStorage.getItem(TRANSACTIONS_KEY);
-  const txs: Transaction[] = txsStr ? JSON.parse(txsStr) : [];
+    const txsStr = localStorage.getItem(TRANSACTIONS_KEY);
+    const txs: Transaction[] = txsStr ? JSON.parse(txsStr) : [];
 
-  let changed = false;
-  const now = Date.now();
+    let changed = false;
+    const now = Date.now();
 
-  for (const inv of invs) {
-    if (inv.status !== 'ACTIVE') continue;
+    for (const inv of invs) {
+      if (inv.status !== 'ACTIVE') continue;
 
-    // Maturity Date Check (startDate + durationDays * 86400000)
-    const startDateMs = new Date(inv.startDate).getTime();
-    const maturityMs = startDateMs + inv.durationDays * 86400000;
+      const startDateMs = new Date(inv.startDate).getTime();
+      const maturityMs = startDateMs + inv.durationDays * 86400000;
 
-    // For test maturity acceleration: if investment has passed maturity or is marked matured
-    if (now >= maturityMs) {
-      // Calculate total profit: dailyReturn * durationDays
-      const totalProfit = inv.dailyReturn * inv.durationDays;
-      const totalReturn = inv.amount + totalProfit; // Principal + Yield Profit
+      if (now >= maturityMs) {
+        const totalProfit = inv.dailyReturn * inv.durationDays;
+        const totalReturn = inv.amount + totalProfit;
 
-      // Mark investment as COMPLETED (state lock against duplicate credit)
-      inv.status = 'COMPLETED';
-      changed = true;
+        // Atomic completion lock
+        inv.status = 'COMPLETED';
+        changed = true;
 
-      // Credit user's wallet automatically
-      const userIdx = users.findIndex((u) => u.userId === inv.userId);
-      if (userIdx !== -1) {
-        users[userIdx].balance += totalReturn;
-        users[userIdx].totalProfitLoss += totalProfit;
+        const userIdx = users.findIndex((u) => u.userId === inv.userId);
+        if (userIdx !== -1) {
+          users[userIdx].balance += totalReturn;
+          users[userIdx].totalProfitLoss += totalProfit;
 
-        // Record permanent transaction log
-        txs.unshift({
-          id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-          userId: inv.userId,
-          type: 'YIELD',
-          amount: totalReturn,
-          currency: inv.asset,
-          status: 'COMPLETED',
-          timestamp: new Date().toISOString(),
-          processedAt: new Date().toISOString(),
-          note: `Investment Matured: Principal $${inv.amount.toFixed(2)} + Profit $${totalProfit.toFixed(2)} Returned`
-        });
+          txs.unshift({
+            id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+            userId: inv.userId,
+            type: 'YIELD',
+            amount: totalReturn,
+            currency: inv.asset,
+            status: 'COMPLETED',
+            timestamp: new Date().toISOString(),
+            processedAt: new Date().toISOString(),
+            note: `Investment Matured: Principal $${inv.amount.toFixed(2)} + Profit $${totalProfit.toFixed(2)} Returned`
+          });
+        }
       }
     }
-  }
 
-  if (changed) {
-    localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(invs));
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
+    if (changed) {
+      localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(invs));
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+      localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
 
-    // Update active session if necessary
-    const currSessionStr = localStorage.getItem(SESSION_KEY);
-    if (currSessionStr) {
-      const sessionUser = JSON.parse(currSessionStr);
-      const updatedUser = users.find((u) => u.userId === sessionUser.userId);
-      if (updatedUser) {
-        localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+      const currSessionStr = localStorage.getItem(SESSION_KEY);
+      if (currSessionStr) {
+        const sessionUser = JSON.parse(currSessionStr);
+        const updatedUser = users.find((u) => u.userId === sessionUser.userId);
+        if (updatedUser) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+        }
       }
     }
+  } catch {
+    // Fail silently on storage errors
   }
 }
 
-// --- SERVER-SIDE ATOMIC TRANSACTION LOGIC & AUTHORIZATION ENFORCEMENT ---
+// --- SERVER-SIDE ATOMIC FINANCIAL TRANSACTIONS ---
 
 export function submitDeposit(user: User, amount: number, currency: string): Transaction {
   if (amount <= 0) {
@@ -407,7 +427,7 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
   const targetTx = txs[txIdx];
 
   if (targetTx.status !== 'PENDING') {
-    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status} and cannot be re-processed.`);
+    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
   }
 
   targetTx.status = 'APPROVED';
@@ -416,7 +436,6 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
-  // Atomically increment target user balance
   const users = getUsers();
   const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
   if (uIdx === -1) {
@@ -430,13 +449,11 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
   users[uIdx] = targetUser;
   saveUsers(users);
 
-  // If current session is targetUser, update current session
   const currentSession = getCurrentSession();
   if (currentSession?.userId === targetUser.userId) {
     saveCurrentSession(targetUser);
   }
 
-  // Administrative Audit Log
   const logs = getAuditLogs();
   logs.unshift({
     id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -524,8 +541,6 @@ export function cancelDepositTransaction(user: User, transactionId: string): Tra
   return targetTx;
 }
 
-// --- REQUIREMENT 3 & 4: WITHDRAWALS SUBMISSION, ADMIN APPROVAL & CANCELLATION ---
-
 export function submitWithdrawalRequest(
   user: User,
   amount: number,
@@ -551,7 +566,7 @@ export function submitWithdrawalRequest(
     throw new Error(`Insufficient available balance. Available: $${dbUser.balance.toFixed(2)}.`);
   }
 
-  // Reserve/deduct withdrawal amount from available balance
+  // Reserve/deduct withdrawal amount
   dbUser.balance -= amount;
   users[uIdx] = dbUser;
   saveUsers(users);
@@ -602,7 +617,6 @@ export function approveWithdrawalTransaction(adminUser: User, transactionId: str
   const users = getUsers();
   const targetUser = users.find((u) => u.userId === targetTx.userId) || adminUser;
 
-  // Audit
   const logs = getAuditLogs();
   logs.unshift({
     id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -643,7 +657,7 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
-  // RESTORE RESERVED FUNDS BACK TO USER AVAILABLE BALANCE
+  // RESTORE RESERVED FUNDS
   const users = getUsers();
   const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
   let updatedUser = adminUser;
@@ -659,7 +673,6 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
     }
   }
 
-  // Audit
   const logs = getAuditLogs();
   logs.unshift({
     id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -677,7 +690,6 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
   return { user: updatedUser, tx: targetTx };
 }
 
-// PERMANENT BALANCE DEDUCTION FOR INVESTMENT (PREVENTS PAGE REFRESH RESET BUG)
 export function subscribeInvestmentPlan(user: User, planId: string, amount: number): { user: User; inv: UserInvestment } {
   const plans = getPlans();
   const plan = plans.find((p) => p.id === planId);
@@ -710,13 +722,12 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
 
   const dailyReturn = (amount * plan.dailyYield) / 100;
 
-  // Deduct user balance permanently
+  // Deduct balance permanently
   dbUser.balance -= amount;
   dbUser.totalInvestments += amount;
   users[uIdx] = dbUser;
   saveUsers(users);
 
-  // IMMEDIATELY SAVE UPDATED USER TO CURRENT SESSION TO FIX REFRESH BUG
   saveCurrentSession(dbUser);
 
   const newInv: UserInvestment = {

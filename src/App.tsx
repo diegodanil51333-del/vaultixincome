@@ -12,29 +12,46 @@ import { WalletScreen } from './components/WalletScreen';
 import { SupportScreen } from './components/SupportScreen';
 import { AdminScreen } from './components/AdminScreen';
 
+const TAB_STORAGE_KEY = 'vaultix_current_tab_v5';
+
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
+  const [currentTab, setCurrentTabState] = useState<NavTab>('dashboard');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     initializeDatabase();
     const session = getCurrentSession();
     if (session) {
-      // Re-fetch fresh user entity from database to ensure no cached state reset on refresh
       const allUsers = getUsers();
       const freshUser = allUsers.find((u) => u.userId === session.userId) || session;
       setCurrentUser(freshUser);
-      if (freshUser.role === 'ADMIN') {
-        setCurrentTab('admin');
+
+      // Restore saved active tab on refresh
+      const savedTab = localStorage.getItem(TAB_STORAGE_KEY) as NavTab | null;
+      if (savedTab) {
+        if (savedTab === 'admin' && freshUser.role !== 'ADMIN') {
+          setCurrentTabState('dashboard');
+        } else {
+          setCurrentTabState(savedTab);
+        }
+      } else if (freshUser.role === 'ADMIN') {
+        setCurrentTabState('admin');
       }
     }
+    setIsInitialized(true);
   }, []);
 
+  const setCurrentTab = (tab: NavTab) => {
+    setCurrentTabState(tab);
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+  };
+
   const handleLoginSuccess = (user: User) => {
-    // Re-verify from DB
     const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
     setCurrentUser(freshUser);
     saveCurrentSession(freshUser);
+
     if (freshUser.role === 'ADMIN') {
       setCurrentTab('admin');
     } else {
@@ -49,9 +66,19 @@ export function App() {
 
   const handleLogout = () => {
     saveCurrentSession(null);
+    localStorage.removeItem(TAB_STORAGE_KEY);
     setCurrentUser(null);
-    setCurrentTab('dashboard');
+    setCurrentTabState('dashboard');
   };
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-[#0B0E14] text-[#D4AF37] flex flex-col items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#D4AF37] mb-3"></div>
+        <span className="text-xs font-bold tracking-widest uppercase">Initializing Vaultix Income Database...</span>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} />;

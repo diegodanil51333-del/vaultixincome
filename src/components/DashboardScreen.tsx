@@ -11,33 +11,43 @@ interface DashboardScreenProps {
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNavigateToTab }) => {
   const allInvestments = getInvestments().filter((inv) => inv.userId === user.userId);
+  const activeInvestments = allInvestments.filter((inv) => inv.status === 'ACTIVE');
+  const completedInvestments = allInvestments.filter((inv) => inv.status === 'COMPLETED');
   const allTransactions = getTransactions().filter((tx) => tx.userId === user.userId);
 
+  // Dynamic Metrics Calculation from Real Database State
+  const mainBalance = user.balance || 0.0;
+  const referralBalance = user.referralEarnings || 0.0;
+  const activeVaultsValue = activeInvestments.reduce((sum, inv) => sum + inv.amount, 0.0);
+  
+  const completedYields = completedInvestments.reduce((sum, inv) => sum + (inv.dailyReturn * inv.durationDays), 0.0);
+  const totalYieldProfit = (user.totalProfitLoss || 0.0) + completedYields;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-8">
       {/* Top Banner Card */}
-      <div className="bg-gradient-to-r from-[#141923] via-[#1D2432] to-[#141923] border border-[#D4AF37]/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#141923] via-[#1D2432] to-[#141923] border border-[#D4AF37]/30 rounded-2xl p-5 md:p-6 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2 text-[#D4AF37] mb-1">
               <ShieldCheck className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Account ID: {user.accountId}</span>
+              <span className="text-xs font-bold uppercase tracking-wider">ACCOUNT ID: {user.accountId}</span>
             </div>
-            <h2 className="text-2xl font-bold text-white">Welcome, {user.fullName}</h2>
-            <p className="text-xs text-slate-400 mt-1">Portfolio overview and active yield strategies</p>
+            <h2 className="text-xl md:text-2xl font-extrabold text-white">Welcome, {user.fullName}</h2>
+            <p className="text-xs text-slate-400 mt-1">Realtime database portfolio overview and active yield strategies</p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => onNavigateToTab('wallet')}
-              className="bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all"
+              className="flex-1 md:flex-initial bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md"
             >
               <Wallet className="w-4 h-4" />
               <span>Deposit Funds</span>
             </button>
             <button
               onClick={() => onNavigateToTab('vaults')}
-              className="bg-[#10B981] hover:bg-[#0d9668] text-black font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all"
+              className="flex-1 md:flex-initial bg-[#10B981] hover:bg-[#0d9668] text-black font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md"
             >
               <TrendingUp className="w-4 h-4" />
               <span>Explore Vaults</span>
@@ -45,33 +55,33 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           </div>
         </div>
 
-        {/* Financial Metrics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[#2A3447]">
-          <div>
-            <span className="text-[11px] text-slate-400 font-medium">Main Balance</span>
-            <div className="text-xl font-extrabold text-[#D4AF37] mt-0.5">
-              ${user.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {/* Dynamic Financial Metrics Cards (Zero Fake Defaults!) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6 pt-6 border-t border-[#2A3447]">
+          <div className="bg-[#0B0E14]/60 p-3.5 rounded-xl border border-[#2A3447]/60">
+            <span className="text-[11px] text-slate-400 font-semibold block">Main Balance</span>
+            <div className="text-lg md:text-xl font-extrabold text-[#D4AF37] mt-0.5">
+              ${mainBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
 
-          <div>
-            <span className="text-[11px] text-slate-400 font-medium">Referral Balance</span>
-            <div className="text-xl font-extrabold text-emerald-400 mt-0.5">
-              ${user.referralEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="bg-[#0B0E14]/60 p-3.5 rounded-xl border border-[#2A3447]/60">
+            <span className="text-[11px] text-slate-400 font-semibold block">Referral Balance</span>
+            <div className="text-lg md:text-xl font-extrabold text-emerald-400 mt-0.5">
+              ${referralBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
 
-          <div>
-            <span className="text-[11px] text-slate-400 font-medium">Active Vaults Value</span>
-            <div className="text-xl font-extrabold text-[#06B6D4] mt-0.5">
-              ${user.totalInvestments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="bg-[#0B0E14]/60 p-3.5 rounded-xl border border-[#2A3447]/60">
+            <span className="text-[11px] text-slate-400 font-semibold block">Active Vaults Value</span>
+            <div className="text-lg md:text-xl font-extrabold text-[#06B6D4] mt-0.5">
+              ${activeVaultsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
 
-          <div>
-            <span className="text-[11px] text-slate-400 font-medium">Total Yield & Profit</span>
-            <div className="text-xl font-extrabold text-[#10B981] mt-0.5 flex items-center space-x-1">
-              <span>+${user.totalProfitLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <div className="bg-[#0B0E14]/60 p-3.5 rounded-xl border border-[#2A3447]/60">
+            <span className="text-[11px] text-slate-400 font-semibold block">Total Yield & Profit</span>
+            <div className="text-lg md:text-xl font-extrabold text-[#10B981] mt-0.5">
+              +${totalYieldProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
         </div>
@@ -85,7 +95,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold text-white flex items-center space-x-2">
             <TrendingUp className="w-4 h-4 text-[#D4AF37]" />
-            <span>Active Investment Vaults ({allInvestments.length})</span>
+            <span>Active Investment Vaults ({activeInvestments.length})</span>
           </h3>
           <button
             onClick={() => onNavigateToTab('vaults')}
@@ -95,13 +105,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           </button>
         </div>
 
-        {allInvestments.length === 0 ? (
+        {activeInvestments.length === 0 ? (
           <div className="bg-[#141923] border border-[#2A3447] rounded-xl p-8 text-center text-slate-400 text-xs">
             No active vaults currently. Subscribe to a yield vault to start earning daily compound returns.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {allInvestments.map((inv) => (
+            {activeInvestments.map((inv) => (
               <div key={inv.id} className="bg-[#141923] border border-[#2A3447] rounded-xl p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
