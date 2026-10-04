@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Transaction } from '../types';
-import { getWallets, submitDeposit, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelDepositTransaction } from '../db';
+import { getWallets, submitDeposit, submitWithdrawalRequest, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelDepositTransaction } from '../db';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Copy, Check, AlertCircle, CheckCircle, Mail, QrCode } from 'lucide-react';
 import { OFFICIAL_SUPPORT_EMAIL } from './SupportScreen';
 
@@ -22,6 +22,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
   // Withdrawal Form
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawAddress, setWithdrawAddress] = useState('');
+  const [withdrawNetwork, setWithdrawNetwork] = useState('TRC20 (Tron)');
   const [wError, setWError] = useState<string | null>(null);
   const [wSuccess, setWSuccess] = useState<string | null>(null);
 
@@ -57,6 +58,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     }
   };
 
+  // REQUIREMENT 8: USER WITHDRAWAL SUBMISSION
   const handleWithdrawal = (e: React.FormEvent) => {
     e.preventDefault();
     setWError(null);
@@ -75,56 +77,37 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     }
 
     if (!withdrawAddress.trim()) {
-      setWError('Please enter a destination wallet address.');
+      setWError('Please enter a destination crypto wallet address.');
       return;
     }
 
-    const updatedUser: User = {
-      ...user,
-      balance: user.balance - amount
-    };
+    try {
+      const tx = submitWithdrawalRequest(user, amount, selectedSymbol, withdrawAddress.trim(), withdrawNetwork);
+      
+      // Fetch latest updated user object from DB
+      const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
+      onUserUpdated(freshUser);
 
-    const users = getUsers();
-    const idx = users.findIndex((u) => u.userId === user.userId);
-    if (idx !== -1) {
-      users[idx] = updatedUser;
-      saveUsers(users);
+      setWithdrawAmount('');
+      setWithdrawAddress('');
+      setWSuccess(`Withdrawal request #${tx.id} of $${amount.toFixed(2)} submitted! Status: PENDING admin authorization.`);
+    } catch (err: any) {
+      setWError(err.message || 'Withdrawal request failed.');
     }
-
-    const newTx: Transaction = {
-      id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-      userId: user.userId,
-      type: 'WITHDRAWAL',
-      amount: amount,
-      currency: 'USD',
-      status: 'PENDING',
-      timestamp: new Date().toISOString(),
-      note: `Withdrawal request to ${withdrawAddress.slice(0, 6)}...${withdrawAddress.slice(-4)}`
-    };
-
-    const txs = getTransactions();
-    txs.unshift(newTx);
-    saveTransactions(txs);
-
-    saveCurrentSession(updatedUser);
-    onUserUpdated(updatedUser);
-
-    setWithdrawAmount('');
-    setWithdrawAddress('');
-    setWSuccess(`Withdrawal request of $${amount.toFixed(2)} submitted successfully! Status: PENDING.`);
   };
 
   const handleCancelUserDeposit = (txId: string) => {
     try {
       cancelDepositTransaction(user, txId);
-      onUserUpdated({ ...user });
+      const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
+      onUserUpdated(freshUser);
     } catch (err: any) {
       alert(err.message);
     }
   };
 
   const handleContactSupport = () => {
-    window.location.href = `mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=${encodeURIComponent('Deposit Verification Support Request')}`;
+    window.location.href = `mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=${encodeURIComponent('Deposit/Withdrawal Support Request')}`;
   };
 
   return (
@@ -153,6 +136,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
               key={w.symbol}
               onClick={() => {
                 setSelectedSymbol(w.symbol);
+                setWithdrawNetwork(w.network);
                 setDepError(null);
                 setDepSuccess(null);
               }}
@@ -259,7 +243,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
         )}
       </div>
 
-      {/* Withdrawal Form */}
+      {/* REQUIREMENT 8: WITHDRAWAL FORM */}
       <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center space-x-2">
           <ArrowUpRight className="w-4 h-4 text-rose-400" />
@@ -281,23 +265,54 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
         )}
 
         <form onSubmit={handleWithdrawal} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Asset Asset/Currency</label>
+              <select
+                value={selectedSymbol}
+                onChange={(e) => {
+                  setSelectedSymbol(e.target.value);
+                  const w = wallets.find((x) => x.symbol === e.target.value);
+                  if (w) setWithdrawNetwork(w.network);
+                }}
+                className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2.5 text-white focus:outline-none"
+              >
+                {wallets.map((w) => (
+                  <option key={w.symbol} value={w.symbol}>
+                    {w.name} ({w.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">Blockchain Network</label>
+              <input
+                type="text"
+                value={withdrawNetwork}
+                onChange={(e) => setWithdrawNetwork(e.target.value)}
+                className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2.5 text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
           <div>
             <div className="flex justify-between text-xs text-slate-300 mb-1">
               <span>Withdrawal Amount ($ USD)</span>
-              <span>Available: ${user.balance.toFixed(2)}</span>
+              <span>Available Balance: ${user.balance.toFixed(2)}</span>
             </div>
             <input
               type="number"
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
-              placeholder="e.g. 500.00"
+              placeholder="e.g. 250.00"
               className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#D4AF37]"
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Destination Crypto Address</label>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Personal Destination Crypto Wallet Address</label>
             <input
               type="text"
               value={withdrawAddress}
@@ -317,7 +332,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
         </form>
       </div>
 
-      {/* User Transaction History (Strictly Masks Admin Identities) */}
+      {/* User Transaction History */}
       <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-white">Your Transaction History</h3>
@@ -346,7 +361,9 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
 
                 <div className="text-right flex items-center space-x-3">
                   <div>
-                    <div className="font-bold text-emerald-400">${tx.amount.toFixed(2)} {tx.currency}</div>
+                    <div className={`font-bold ${tx.type === 'WITHDRAWAL' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      {tx.type === 'WITHDRAWAL' ? '-' : '+'}${tx.amount.toFixed(2)} {tx.currency}
+                    </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       tx.status === 'APPROVED' || tx.status === 'COMPLETED'
                         ? 'bg-emerald-500/20 text-emerald-400'

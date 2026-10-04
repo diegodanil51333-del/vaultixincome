@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v3';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v3';
-const INVESTMENTS_KEY = 'vaultix_investments_v3';
-const INVITATIONS_KEY = 'vaultix_invitations_v3';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v3';
-const WALLETS_KEY = 'vaultix_wallets_v3';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v3';
-const PLANS_KEY = 'vaultix_plans_v3';
-const SESSION_KEY = 'vaultix_session_v3';
+const USERS_KEY = 'vaultix_users_v4';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v4';
+const INVESTMENTS_KEY = 'vaultix_investments_v4';
+const INVITATIONS_KEY = 'vaultix_invitations_v4';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v4';
+const WALLETS_KEY = 'vaultix_wallets_v4';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v4';
+const PLANS_KEY = 'vaultix_plans_v4';
+const SESSION_KEY = 'vaultix_session_v4';
 
 // System Default Configurations
 export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
@@ -195,6 +195,7 @@ export function initializeDatabase() {
 
 // Data Accessors
 export function getUsers(): User[] {
+  processMaturedInvestments();
   const d = localStorage.getItem(USERS_KEY);
   return d ? JSON.parse(d) : [];
 }
@@ -267,6 +268,7 @@ export function savePlans(plans: InvestmentPlan[]) {
 }
 
 export function getCurrentSession(): User | null {
+  processMaturedInvestments();
   const d = localStorage.getItem(SESSION_KEY);
   if (!d) return null;
 
@@ -286,6 +288,83 @@ export function saveCurrentSession(user: User | null) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(user));
   } else {
     localStorage.removeItem(SESSION_KEY);
+  }
+}
+
+// --- REQUIREMENT 5 & 6: AUTOMATIC INVESTMENT MATURITY & PROFIT ENGINE (PREVENTS DUPLICATE PROFIT PAYMENTS) ---
+
+export function processMaturedInvestments() {
+  const invsStr = localStorage.getItem(INVESTMENTS_KEY);
+  if (!invsStr) return;
+
+  const invs: UserInvestment[] = JSON.parse(invsStr);
+  const activeInvs = invs.filter((inv) => inv.status === 'ACTIVE');
+
+  if (activeInvs.length === 0) return;
+
+  const usersStr = localStorage.getItem(USERS_KEY);
+  if (!usersStr) return;
+  const users: User[] = JSON.parse(usersStr);
+
+  const txsStr = localStorage.getItem(TRANSACTIONS_KEY);
+  const txs: Transaction[] = txsStr ? JSON.parse(txsStr) : [];
+
+  let changed = false;
+  const now = Date.now();
+
+  for (const inv of invs) {
+    if (inv.status !== 'ACTIVE') continue;
+
+    // Maturity Date Check (startDate + durationDays * 86400000)
+    const startDateMs = new Date(inv.startDate).getTime();
+    const maturityMs = startDateMs + inv.durationDays * 86400000;
+
+    // For test maturity acceleration: if investment has passed maturity or is marked matured
+    if (now >= maturityMs) {
+      // Calculate total profit: dailyReturn * durationDays
+      const totalProfit = inv.dailyReturn * inv.durationDays;
+      const totalReturn = inv.amount + totalProfit; // Principal + Yield Profit
+
+      // Mark investment as COMPLETED (state lock against duplicate credit)
+      inv.status = 'COMPLETED';
+      changed = true;
+
+      // Credit user's wallet automatically
+      const userIdx = users.findIndex((u) => u.userId === inv.userId);
+      if (userIdx !== -1) {
+        users[userIdx].balance += totalReturn;
+        users[userIdx].totalProfitLoss += totalProfit;
+
+        // Record permanent transaction log
+        txs.unshift({
+          id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+          userId: inv.userId,
+          type: 'YIELD',
+          amount: totalReturn,
+          currency: inv.asset,
+          status: 'COMPLETED',
+          timestamp: new Date().toISOString(),
+          processedAt: new Date().toISOString(),
+          note: `Investment Matured: Principal $${inv.amount.toFixed(2)} + Profit $${totalProfit.toFixed(2)} Returned`
+        });
+      }
+    }
+  }
+
+  if (changed) {
+    localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(invs));
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
+
+    // Update active session if necessary
+    const currSessionStr = localStorage.getItem(SESSION_KEY);
+    if (currSessionStr) {
+      const sessionUser = JSON.parse(currSessionStr);
+      const updatedUser = users.find((u) => u.userId === sessionUser.userId);
+      if (updatedUser) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+      }
+    }
   }
 }
 
@@ -445,7 +524,160 @@ export function cancelDepositTransaction(user: User, transactionId: string): Tra
   return targetTx;
 }
 
-// REQUIREMENT 2: PERMANENT BALANCE DEDUCTION FOR INVESTMENT (PREVENTS PAGE REFRESH RESET BUG)
+// --- REQUIREMENT 3 & 4: WITHDRAWALS SUBMISSION, ADMIN APPROVAL & CANCELLATION ---
+
+export function submitWithdrawalRequest(
+  user: User,
+  amount: number,
+  currency: string,
+  destinationAddress: string,
+  network: string
+): Transaction {
+  if (amount <= 0) {
+    throw new Error('Withdrawal amount must be greater than zero.');
+  }
+
+  if (!destinationAddress.trim()) {
+    throw new Error('Please enter a valid destination crypto wallet address.');
+  }
+
+  const users = getUsers();
+  const uIdx = users.findIndex((u) => u.userId === user.userId);
+  if (uIdx === -1) throw new Error('User account not found.');
+
+  const dbUser = users[uIdx];
+
+  if (dbUser.balance < amount) {
+    throw new Error(`Insufficient available balance. Available: $${dbUser.balance.toFixed(2)}.`);
+  }
+
+  // Reserve/deduct withdrawal amount from available balance
+  dbUser.balance -= amount;
+  users[uIdx] = dbUser;
+  saveUsers(users);
+  saveCurrentSession(dbUser);
+
+  const txs = getTransactions();
+  const newTx: Transaction = {
+    id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+    userId: dbUser.userId,
+    type: 'WITHDRAWAL',
+    amount: amount,
+    currency: currency,
+    status: 'PENDING',
+    timestamp: new Date().toISOString(),
+    note: `Withdrawal of $${amount.toFixed(2)} ${currency} to ${destinationAddress} via ${network}`
+  };
+
+  txs.unshift(newTx);
+  saveTransactions(txs);
+
+  return newTx;
+}
+
+export function approveWithdrawalTransaction(adminUser: User, transactionId: string): { user: User; tx: Transaction } {
+  if (adminUser.role !== 'ADMIN') {
+    throw new Error('UNAUTHORIZED: Admin privileges required.');
+  }
+
+  const txs = getTransactions();
+  const txIdx = txs.findIndex((t) => t.id === transactionId);
+
+  if (txIdx === -1) {
+    throw new Error('Transaction not found.');
+  }
+
+  const targetTx = txs[txIdx];
+
+  if (targetTx.status !== 'PENDING' || targetTx.type !== 'WITHDRAWAL') {
+    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
+  }
+
+  targetTx.status = 'APPROVED';
+  targetTx.processedAt = new Date().toISOString();
+  targetTx.note = `${targetTx.note} - Approved and Dispatched`;
+  txs[txIdx] = targetTx;
+  saveTransactions(txs);
+
+  const users = getUsers();
+  const targetUser = users.find((u) => u.userId === targetTx.userId) || adminUser;
+
+  // Audit
+  const logs = getAuditLogs();
+  logs.unshift({
+    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+    adminId: adminUser.userId,
+    action: 'WITHDRAWAL_APPROVED',
+    targetUserId: targetTx.userId,
+    targetUsername: targetUser.username,
+    transactionId: targetTx.id,
+    newValue: `Approved $${targetTx.amount.toFixed(2)} ${targetTx.currency} withdrawal`,
+    timestamp: new Date().toISOString()
+  });
+  saveAuditLogs(logs);
+
+  return { user: targetUser, tx: targetTx };
+}
+
+export function cancelWithdrawalTransaction(adminUser: User, transactionId: string, reason?: string): { user: User; tx: Transaction } {
+  if (adminUser.role !== 'ADMIN') {
+    throw new Error('UNAUTHORIZED: Admin privileges required.');
+  }
+
+  const txs = getTransactions();
+  const txIdx = txs.findIndex((t) => t.id === transactionId);
+
+  if (txIdx === -1) {
+    throw new Error('Transaction not found.');
+  }
+
+  const targetTx = txs[txIdx];
+
+  if (targetTx.status !== 'PENDING' || targetTx.type !== 'WITHDRAWAL') {
+    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
+  }
+
+  targetTx.status = 'CANCELLED';
+  targetTx.processedAt = new Date().toISOString();
+  targetTx.note = `Withdrawal Cancelled: ${reason || 'Administrative Cancellation'} (Funds Restored)`;
+  txs[txIdx] = targetTx;
+  saveTransactions(txs);
+
+  // RESTORE RESERVED FUNDS BACK TO USER AVAILABLE BALANCE
+  const users = getUsers();
+  const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
+  let updatedUser = adminUser;
+
+  if (uIdx !== -1) {
+    users[uIdx].balance += targetTx.amount;
+    updatedUser = users[uIdx];
+    saveUsers(users);
+
+    const currentSession = getCurrentSession();
+    if (currentSession?.userId === updatedUser.userId) {
+      saveCurrentSession(updatedUser);
+    }
+  }
+
+  // Audit
+  const logs = getAuditLogs();
+  logs.unshift({
+    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+    adminId: adminUser.userId,
+    action: 'WITHDRAWAL_CANCELLED',
+    targetUserId: targetTx.userId,
+    targetUsername: updatedUser.username,
+    transactionId: targetTx.id,
+    reason: reason || 'Administrative Cancellation',
+    newValue: `Refunded $${targetTx.amount.toFixed(2)} to balance`,
+    timestamp: new Date().toISOString()
+  });
+  saveAuditLogs(logs);
+
+  return { user: updatedUser, tx: targetTx };
+}
+
+// PERMANENT BALANCE DEDUCTION FOR INVESTMENT (PREVENTS PAGE REFRESH RESET BUG)
 export function subscribeInvestmentPlan(user: User, planId: string, amount: number): { user: User; inv: UserInvestment } {
   const plans = getPlans();
   const plan = plans.find((p) => p.id === planId);
@@ -466,7 +698,6 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
     throw new Error(`Maximum investment limit for ${plan.name} is $${plan.maxDeposit}.`);
   }
 
-  // Check latest database user balance to prevent stale balance race conditions
   const users = getUsers();
   const uIdx = users.findIndex((u) => u.userId === user.userId);
   if (uIdx === -1) throw new Error('User account not found.');
@@ -488,7 +719,6 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
   // IMMEDIATELY SAVE UPDATED USER TO CURRENT SESSION TO FIX REFRESH BUG
   saveCurrentSession(dbUser);
 
-  // Create investment record
   const newInv: UserInvestment = {
     id: `INV-${Math.floor(10000 + Math.random() * 90000)}`,
     userId: dbUser.userId,
@@ -506,7 +736,6 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
   invs.unshift(newInv);
   saveInvestments(invs);
 
-  // Transaction Log
   const txs = getTransactions();
   txs.unshift({
     id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -523,7 +752,6 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
   return { user: dbUser, inv: newInv };
 }
 
-// REQUIREMENT 4: REFERRAL WITHDRAWAL WITH $15 NETWORK FEE ENFORCEMENT
 export function withdrawReferralEarnings(
   user: User,
   withdrawalAmount: number,
@@ -531,7 +759,6 @@ export function withdrawReferralEarnings(
 ): { user: User; tx: Transaction } {
   const refConfig = getReferralConfig();
   const minThreshold = refConfig.withdrawalThreshold || 50.0;
-  const NETWORK_FEE = 15.0;
 
   const users = getUsers();
   const uIdx = users.findIndex((u) => u.userId === user.userId);
@@ -551,7 +778,6 @@ export function withdrawReferralEarnings(
     throw new Error('A valid destination crypto address is required.');
   }
 
-  // Deduct $15 network fee and requested withdrawal amount from referral earnings
   dbUser.referralEarnings -= withdrawalAmount;
   users[uIdx] = dbUser;
   saveUsers(users);

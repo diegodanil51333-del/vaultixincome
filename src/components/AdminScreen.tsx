@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, Transaction, AuditLog } from '../types';
 import {
   getUsers, saveUsers, getTransactions, approveDepositTransaction, rejectDepositTransaction,
-  cancelDepositTransaction, getAuditLogs, saveAuditLogs, getWallets, saveWallets, getReferralConfig,
-  saveReferralConfig, getPlans, savePlans, getInvestments
+  cancelDepositTransaction, approveWithdrawalTransaction, cancelWithdrawalTransaction,
+  getAuditLogs, saveAuditLogs, getWallets, saveWallets, getReferralConfig, saveReferralConfig, getPlans, savePlans
 } from '../db';
-import { ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, RefreshCw, Layers, Sliders } from 'lucide-react';
+import { ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, ArrowUpRight, Layers, Sliders } from 'lucide-react';
 
 interface AdminScreenProps {
   currentAdmin: User;
 }
 
 export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
-  const [tab, setTab] = useState<'users' | 'deposits' | 'wallets' | 'plans' | 'referral' | 'audit'>('users');
+  const [tab, setTab] = useState<'users' | 'deposits' | 'withdrawals' | 'wallets' | 'plans' | 'referral' | 'audit'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>(getUsers());
   const [transactions, setTransactions] = useState<Transaction[]>(getTransactions());
@@ -32,7 +32,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // REALTIME USER DETECTION: Auto-revalidate data every 3 seconds
+  // REALTIME DATA REVALIDATION
   useEffect(() => {
     const interval = setInterval(() => {
       setUsers(getUsers());
@@ -65,13 +65,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   });
 
   const pendingDeposits = transactions.filter((t) => t.type === 'DEPOSIT' && t.status === 'PENDING');
+  const pendingWithdrawals = transactions.filter((t) => t.type === 'WITHDRAWAL' && t.status === 'PENDING');
 
-  // Actions
+  // Deposit Actions
   const handleApproveDeposit = (txId: string) => {
     try {
       setError(null);
       const res = approveDepositTransaction(currentAdmin, txId);
-      setMsg(`Deposit ${txId} successfully approved! Credited $${res.tx.amount.toFixed(2)} to @${res.user.username}.`);
+      setMsg(`Deposit ${txId} approved! Credited $${res.tx.amount.toFixed(2)} to @${res.user.username}.`);
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to approve deposit.');
@@ -98,6 +99,30 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to cancel deposit.');
+    }
+  };
+
+  // Withdrawal Actions
+  const handleApproveWithdrawal = (txId: string) => {
+    try {
+      setError(null);
+      const res = approveWithdrawalTransaction(currentAdmin, txId);
+      setMsg(`Withdrawal ${txId} approved and completed for @${res.user.username}!`);
+      refreshData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to approve withdrawal.');
+    }
+  };
+
+  const handleCancelWithdrawal = (txId: string) => {
+    try {
+      setError(null);
+      const res = cancelWithdrawalTransaction(currentAdmin, txId, rejectReason || 'Administrative cancellation');
+      setMsg(`Withdrawal ${txId} cancelled. Refunded $${res.tx.amount.toFixed(2)} back to @${res.user.username}.`);
+      setRejectReason('');
+      refreshData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to cancel withdrawal.');
     }
   };
 
@@ -204,7 +229,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
             <span>Administrator Control Center</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Realtime user directory, deposit authorization, wallets, and audit logs
+            Realtime user directory, deposit & withdrawal approvals, wallets, and audit logs
           </p>
         </div>
 
@@ -217,19 +242,35 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
           >
             Users ({users.length})
           </button>
+
           <button
             onClick={() => setTab('deposits')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all relative ${
               tab === 'deposits' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
             }`}
           >
-            Pending Deposits ({pendingDeposits.length})
+            Deposits ({pendingDeposits.length})
             {pendingDeposits.length > 0 && (
               <span className="ml-1 px-1.5 py-0.2 text-[9px] bg-amber-500 text-black font-extrabold rounded-full">
                 {pendingDeposits.length}
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setTab('withdrawals')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all relative ${
+              tab === 'withdrawals' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Withdrawals ({pendingWithdrawals.length})
+            {pendingWithdrawals.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 text-[9px] bg-rose-500 text-white font-extrabold rounded-full">
+                {pendingWithdrawals.length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setTab('wallets')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -356,7 +397,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center space-x-2">
             <DollarSign className="w-4 h-4 text-amber-400" />
-            <span>Pending Deposit Verification Requests ({pendingDeposits.length})</span>
+            <span>Pending Deposit Requests ({pendingDeposits.length})</span>
           </h3>
 
           {pendingDeposits.length === 0 ? (
@@ -412,7 +453,73 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
         </div>
       )}
 
-      {/* TAB 3: Crypto Wallets & XRP Control */}
+      {/* REQUIREMENT 3 & 4: TAB 3 - PENDING WITHDRAWALS & DESTINATION ADDRESS DISCOVERY */}
+      {tab === 'withdrawals' && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+            <ArrowUpRight className="w-4 h-4 text-rose-400" />
+            <span>Pending Withdrawal Authorization Requests ({pendingWithdrawals.length})</span>
+          </h3>
+
+          {pendingWithdrawals.length === 0 ? (
+            <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-8 text-center text-xs text-slate-400">
+              No pending withdrawal requests. All withdrawal requests are processed.
+            </div>
+          ) : (
+            <div className="bg-[#141923] border border-[#2A3447] rounded-2xl divide-y divide-[#2A3447] overflow-hidden">
+              {pendingWithdrawals.map((tx) => {
+                const targetUser = users.find((u) => u.userId === tx.userId);
+                return (
+                  <div key={tx.id} className="p-4 space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-xs font-bold text-rose-400">{tx.id}</span>
+                          <span className="text-xs text-white font-bold">@{targetUser?.username || 'Unknown'} ({targetUser?.fullName})</span>
+                          <span className="text-[10px] text-slate-400">{targetUser?.email} • ID: {targetUser?.accountId}</span>
+                          <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                            PENDING
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-300">
+                          Amount: <span className="text-rose-400 font-extrabold">${tx.amount.toFixed(2)} {tx.currency}</span> • Submitted: {new Date(tx.timestamp).toLocaleString()}
+                        </div>
+
+                        {/* CLEARLY DISPLAY DESTINATION WALLET ADDRESS */}
+                        <div className="bg-[#0B0E14] border border-slate-700/80 rounded-xl p-2.5 mt-2">
+                          <span className="text-[10px] text-amber-400 font-bold block uppercase tracking-wider">Destination Crypto Wallet Address & Note:</span>
+                          <span className="font-mono text-xs text-[#D4AF37] select-all font-bold break-all block mt-0.5">
+                            {tx.note}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 shrink-0 self-start md:self-center">
+                        <button
+                          onClick={() => handleApproveWithdrawal(tx.id)}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md"
+                        >
+                          Approve Withdrawal
+                        </button>
+
+                        <button
+                          onClick={() => handleCancelWithdrawal(tx.id)}
+                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md"
+                        >
+                          Cancel & Refund
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: Crypto Wallets & XRP Control */}
       {tab === 'wallets' && (
         <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-6">
           <div>
@@ -502,7 +609,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
         </div>
       )}
 
-      {/* TAB 4: Investment Plans Config */}
+      {/* TAB 5: Investment Plans Config */}
       {tab === 'plans' && (
         <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center space-x-2">
@@ -596,7 +703,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
         </div>
       )}
 
-      {/* TAB 5: Referral Config */}
+      {/* TAB 6: Referral Config */}
       {tab === 'referral' && (
         <form onSubmit={handleSaveReferralConfig} className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center space-x-2">
@@ -635,7 +742,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
         </form>
       )}
 
-      {/* TAB 6: Administrative Audit Logs */}
+      {/* TAB 7: Administrative Audit Logs */}
       {tab === 'audit' && (
         <div className="bg-[#141923] border border-[#2A3447] rounded-2xl overflow-hidden divide-y divide-[#2A3447]">
           {auditLogs.length === 0 ? (
