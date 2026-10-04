@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from './types';
-import { initializeDatabase, getCurrentSession, saveCurrentSession } from './db';
+import { initializeDatabase, getCurrentSession, saveCurrentSession, getUsers } from './db';
 import { Navbar } from './components/Navbar';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { AuthScreen } from './components/AuthScreen';
@@ -20,20 +20,31 @@ export function App() {
     initializeDatabase();
     const session = getCurrentSession();
     if (session) {
-      setCurrentUser(session);
-      if (session.role === 'ADMIN') {
+      // Re-fetch fresh user entity from database to ensure no cached state reset on refresh
+      const allUsers = getUsers();
+      const freshUser = allUsers.find((u) => u.userId === session.userId) || session;
+      setCurrentUser(freshUser);
+      if (freshUser.role === 'ADMIN') {
         setCurrentTab('admin');
       }
     }
   }, []);
 
   const handleLoginSuccess = (user: User) => {
-    setCurrentUser(user);
-    if (user.role === 'ADMIN') {
+    // Re-verify from DB
+    const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
+    setCurrentUser(freshUser);
+    saveCurrentSession(freshUser);
+    if (freshUser.role === 'ADMIN') {
       setCurrentTab('admin');
     } else {
       setCurrentTab('dashboard');
     }
+  };
+
+  const handleUserUpdated = (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+    saveCurrentSession(updatedUser);
   };
 
   const handleLogout = () => {
@@ -58,14 +69,14 @@ export function App() {
             <DashboardScreen user={currentUser} onNavigateToTab={setCurrentTab} />
           )}
           {currentTab === 'vaults' && (
-            <VaultsScreen user={currentUser} onUserUpdated={setCurrentUser} />
+            <VaultsScreen user={currentUser} onUserUpdated={handleUserUpdated} />
           )}
           {currentTab === 'buy_crypto' && <BuyCryptoScreen />}
           {currentTab === 'invite' && (
-            <InviteScreen user={currentUser} onUserUpdated={setCurrentUser} />
+            <InviteScreen user={currentUser} onUserUpdated={handleUserUpdated} />
           )}
           {currentTab === 'wallet' && (
-            <WalletScreen user={currentUser} onUserUpdated={setCurrentUser} />
+            <WalletScreen user={currentUser} onUserUpdated={handleUserUpdated} />
           )}
           {currentTab === 'support' && <SupportScreen user={currentUser} />}
           {currentTab === 'admin' && currentUser.role === 'ADMIN' && (

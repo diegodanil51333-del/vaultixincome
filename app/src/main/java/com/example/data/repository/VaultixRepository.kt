@@ -87,6 +87,8 @@ class VaultixRepository(private val db: VaultixDatabase) {
         val accountId = "VX-${(100000..999999).random()}"
         val refCode = "VXREF-" + UUID.randomUUID().toString().take(4).uppercase(Locale.ROOT)
 
+        val signupBonus = if (referrerUsername != null) 5.0 else 0.0
+
         val newUser = UserEntity(
             userId = userId,
             accountId = accountId,
@@ -98,8 +100,8 @@ class VaultixRepository(private val db: VaultixDatabase) {
             accountStatus = "ACTIVE",
             registrationDate = System.currentTimeMillis(),
             lastLogin = System.currentTimeMillis(),
-            balance = 1000.0, // Welcome signup bonus
-            totalDeposits = 1000.0,
+            balance = signupBonus, // $0.00 default starting balance ($5.00 if invited with code)
+            totalDeposits = 0.0,
             referralCode = refCode,
             referredByUsername = referrerUsername
         )

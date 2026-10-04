@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v2';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v2';
-const INVESTMENTS_KEY = 'vaultix_investments_v2';
-const INVITATIONS_KEY = 'vaultix_invitations_v2';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v2';
-const WALLETS_KEY = 'vaultix_wallets_v2';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v2';
-const PLANS_KEY = 'vaultix_plans_v2';
-const SESSION_KEY = 'vaultix_session_v2';
+const USERS_KEY = 'vaultix_users_v3';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v3';
+const INVESTMENTS_KEY = 'vaultix_investments_v3';
+const INVITATIONS_KEY = 'vaultix_invitations_v3';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v3';
+const WALLETS_KEY = 'vaultix_wallets_v3';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v3';
+const PLANS_KEY = 'vaultix_plans_v3';
+const SESSION_KEY = 'vaultix_session_v3';
 
 // System Default Configurations
 export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
@@ -144,6 +144,7 @@ export function initializeDatabase() {
       createdAt: new Date().toISOString()
     };
 
+    // REQUIREMENT 1: Standard seed users start with $0.00 until deposit is approved
     const seedUser: User = {
       userId: 'USR-000002',
       accountId: 'VX-100002',
@@ -153,11 +154,11 @@ export function initializeDatabase() {
       passwordHash: 'password123',
       role: 'USER',
       accountStatus: 'ACTIVE',
-      balance: 1250.0,
+      balance: 0.0,
       referralEarnings: 50.0,
-      totalDeposits: 1000.0,
-      totalInvestments: 500.0,
-      totalProfitLoss: 125.0,
+      totalDeposits: 0.0,
+      totalInvestments: 0.0,
+      totalProfitLoss: 0.0,
       referralCode: 'VXREF-8921',
       createdAt: new Date().toISOString()
     };
@@ -171,58 +172,19 @@ export function initializeDatabase() {
       passwordHash: 'password123',
       role: 'USER',
       accountStatus: 'ACTIVE',
-      balance: 750.0,
-      referralEarnings: 25.0,
-      totalDeposits: 750.0,
-      totalInvestments: 250.0,
-      totalProfitLoss: 45.0,
+      balance: 0.0,
+      referralEarnings: 5.0,
+      totalDeposits: 0.0,
+      totalInvestments: 0.0,
+      totalProfitLoss: 0.0,
       referralCode: 'VXREF-3341',
       referredByUsername: 'testuser01',
       createdAt: new Date().toISOString()
     };
 
     localStorage.setItem(USERS_KEY, JSON.stringify([seedAdmin, seedUser, seedUser2]));
-
-    const seedTxs: Transaction[] = [
-      {
-        id: 'TX-9001',
-        userId: seedUser.userId,
-        type: 'DEPOSIT',
-        amount: 1000.0,
-        currency: 'USDT',
-        status: 'APPROVED',
-        timestamp: new Date(Date.now() - 86400000 * 3).toISOString(),
-        processedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-        note: 'Initial Deposit Approved'
-      },
-      {
-        id: 'TX-9002',
-        userId: seedUser.userId,
-        type: 'REFERRAL_REWARD',
-        amount: 25.0,
-        currency: 'USD',
-        status: 'COMPLETED',
-        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-        note: 'Referral Bonus Received for @sarah_crypto'
-      }
-    ];
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(seedTxs));
-
-    const seedInvs: UserInvestment[] = [
-      {
-        id: 'INV-101',
-        userId: seedUser.userId,
-        planId: 'plan_btc_yield',
-        planName: 'Bitcoin Alpha Vault',
-        asset: 'BTC',
-        amount: 500.0,
-        dailyReturn: 9.0,
-        startDate: new Date(Date.now() - 86400000).toISOString(),
-        durationDays: 14,
-        status: 'ACTIVE'
-      }
-    ];
-    localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(seedInvs));
+    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([]));
+    localStorage.setItem(INVESTMENTS_KEY, JSON.stringify([]));
     localStorage.setItem(INVITATIONS_KEY, JSON.stringify([]));
     localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify([]));
     localStorage.setItem(WALLETS_KEY, JSON.stringify(DEFAULT_WALLETS));
@@ -306,7 +268,17 @@ export function savePlans(plans: InvestmentPlan[]) {
 
 export function getCurrentSession(): User | null {
   const d = localStorage.getItem(SESSION_KEY);
-  return d ? JSON.parse(d) : null;
+  if (!d) return null;
+
+  try {
+    const sessionUser = JSON.parse(d);
+    // Always resolve latest state from USERS_KEY database to prevent stale balance bug on refresh!
+    const users = getUsers();
+    const freshUser = users.find((u) => u.userId === sessionUser.userId);
+    return freshUser || sessionUser;
+  } catch {
+    return null;
+  }
 }
 
 export function saveCurrentSession(user: User | null) {
@@ -355,12 +327,10 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
 
   const targetTx = txs[txIdx];
 
-  // Atomic state check: Lock against double-approval, double-crediting, race conditions
   if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status} and cannot be re-processed.`);
   }
 
-  // Update transaction status
   targetTx.status = 'APPROVED';
   targetTx.processedAt = new Date().toISOString();
   targetTx.note = `Deposit Approved and Credited`;
@@ -381,7 +351,13 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
   users[uIdx] = targetUser;
   saveUsers(users);
 
-  // Add Administrative Audit Log
+  // If current session is targetUser, update current session
+  const currentSession = getCurrentSession();
+  if (currentSession?.userId === targetUser.userId) {
+    saveCurrentSession(targetUser);
+  }
+
+  // Administrative Audit Log
   const logs = getAuditLogs();
   logs.unshift({
     id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -426,7 +402,6 @@ export function rejectDepositTransaction(adminUser: User, transactionId: string,
   const users = getUsers();
   const targetUser = users.find((u) => u.userId === targetTx.userId);
 
-  // Audit
   const logs = getAuditLogs();
   logs.unshift({
     id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -470,6 +445,7 @@ export function cancelDepositTransaction(user: User, transactionId: string): Tra
   return targetTx;
 }
 
+// REQUIREMENT 2: PERMANENT BALANCE DEDUCTION FOR INVESTMENT (PREVENTS PAGE REFRESH RESET BUG)
 export function subscribeInvestmentPlan(user: User, planId: string, amount: number): { user: User; inv: UserInvestment } {
   const plans = getPlans();
   const plan = plans.find((p) => p.id === planId);
@@ -490,27 +466,32 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
     throw new Error(`Maximum investment limit for ${plan.name} is $${plan.maxDeposit}.`);
   }
 
-  if (user.balance < amount) {
-    throw new Error(`Insufficient account balance. Available: $${user.balance.toFixed(2)}.`);
+  // Check latest database user balance to prevent stale balance race conditions
+  const users = getUsers();
+  const uIdx = users.findIndex((u) => u.userId === user.userId);
+  if (uIdx === -1) throw new Error('User account not found.');
+
+  const dbUser = users[uIdx];
+
+  if (dbUser.balance < amount) {
+    throw new Error(`Insufficient account balance. Available balance: $${dbUser.balance.toFixed(2)}.`);
   }
 
   const dailyReturn = (amount * plan.dailyYield) / 100;
 
-  // Deduct user balance
-  const users = getUsers();
-  const uIdx = users.findIndex((u) => u.userId === user.userId);
-  if (uIdx === -1) throw new Error('User not found.');
-
-  const updatedUser = users[uIdx];
-  updatedUser.balance -= amount;
-  updatedUser.totalInvestments += amount;
-  users[uIdx] = updatedUser;
+  // Deduct user balance permanently
+  dbUser.balance -= amount;
+  dbUser.totalInvestments += amount;
+  users[uIdx] = dbUser;
   saveUsers(users);
 
-  // Create investment
+  // IMMEDIATELY SAVE UPDATED USER TO CURRENT SESSION TO FIX REFRESH BUG
+  saveCurrentSession(dbUser);
+
+  // Create investment record
   const newInv: UserInvestment = {
     id: `INV-${Math.floor(10000 + Math.random() * 90000)}`,
-    userId: user.userId,
+    userId: dbUser.userId,
     planId: plan.id,
     planName: plan.name,
     asset: plan.asset,
@@ -529,7 +510,7 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
   const txs = getTransactions();
   txs.unshift({
     id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-    userId: user.userId,
+    userId: dbUser.userId,
     type: 'YIELD',
     amount: amount,
     currency: plan.asset,
@@ -539,5 +520,57 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
   });
   saveTransactions(txs);
 
-  return { user: updatedUser, inv: newInv };
+  return { user: dbUser, inv: newInv };
+}
+
+// REQUIREMENT 4: REFERRAL WITHDRAWAL WITH $15 NETWORK FEE ENFORCEMENT
+export function withdrawReferralEarnings(
+  user: User,
+  withdrawalAmount: number,
+  destinationAddress: string
+): { user: User; tx: Transaction } {
+  const refConfig = getReferralConfig();
+  const minThreshold = refConfig.withdrawalThreshold || 50.0;
+  const NETWORK_FEE = 15.0;
+
+  const users = getUsers();
+  const uIdx = users.findIndex((u) => u.userId === user.userId);
+  if (uIdx === -1) throw new Error('User account not found.');
+
+  const dbUser = users[uIdx];
+
+  if (dbUser.referralEarnings < minThreshold) {
+    throw new Error(`Minimum referral earnings withdrawal threshold is $${minThreshold.toFixed(2)}. Your current referral earnings: $${dbUser.referralEarnings.toFixed(2)}.`);
+  }
+
+  if (withdrawalAmount > dbUser.referralEarnings) {
+    throw new Error(`Requested amount ($${withdrawalAmount.toFixed(2)}) exceeds available referral earnings ($${dbUser.referralEarnings.toFixed(2)}).`);
+  }
+
+  if (!destinationAddress.trim()) {
+    throw new Error('A valid destination crypto address is required.');
+  }
+
+  // Deduct $15 network fee and requested withdrawal amount from referral earnings
+  dbUser.referralEarnings -= withdrawalAmount;
+  users[uIdx] = dbUser;
+  saveUsers(users);
+  saveCurrentSession(dbUser);
+
+  const txs = getTransactions();
+  const newTx: Transaction = {
+    id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+    userId: dbUser.userId,
+    type: 'WITHDRAWAL',
+    amount: withdrawalAmount,
+    currency: 'USD',
+    status: 'PENDING',
+    timestamp: new Date().toISOString(),
+    note: `Referral Withdrawal to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)} ($15 Network Fee Confirmed)`
+  };
+
+  txs.unshift(newTx);
+  saveTransactions(txs);
+
+  return { user: dbUser, tx: newTx };
 }

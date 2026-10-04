@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User } from '../types';
-import { getUsers, saveUsers, saveCurrentSession } from '../db';
-import { Lock, User as UserIcon, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Transaction } from '../types';
+import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, getReferralConfig } from '../db';
+import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift } from 'lucide-react';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: User) => void;
@@ -92,15 +92,40 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    const refConfig = getReferralConfig();
     let referrerUsername: string | undefined = undefined;
+    let initialReferralEarnings = 0;
+
+    const txs = getTransactions();
+
     if (referralCodeInput.trim()) {
       const referrer = users.find((u) => u.referralCode.toLowerCase() === referralCodeInput.trim().toLowerCase());
       if (referrer) {
         referrerUsername = referrer.username;
-        referrer.balance += 25.0;
+        // Referrer receives $25 referral bonus
+        referrer.referralEarnings += refConfig.bonusAmount || 25.0;
+
+        // Record referrer bonus transaction
+        txs.unshift({
+          id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+          userId: referrer.userId,
+          type: 'REFERRAL_REWARD',
+          amount: refConfig.bonusAmount || 25.0,
+          currency: 'USD',
+          status: 'COMPLETED',
+          timestamp: new Date().toISOString(),
+          note: `Referral Reward for inviting @${username.trim()}`
+        });
+
+        // Newly registered user receives $5 signup referral bonus
+        initialReferralEarnings = 5.0;
+      } else {
+        setError('Invalid referral code provided. Registration cancelled.');
+        return;
       }
     }
 
+    // REQUIREMENT 1: DEFAULT STARTING BALANCE IS $0.00
     const newUser: User = {
       userId: `USR-${Math.floor(100000 + Math.random() * 900000)}`,
       accountId: `VX-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -110,20 +135,39 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       passwordHash: password,
       role: 'USER',
       accountStatus: 'ACTIVE',
-      balance: 1000.0,
-      referralEarnings: 0,
-      totalDeposits: 1000.0,
-      totalInvestments: 0,
-      totalProfitLoss: 0,
+      balance: 0.0, // Default starting balance is $0.00 until deposit is approved
+      referralEarnings: initialReferralEarnings,
+      totalDeposits: 0.0,
+      totalInvestments: 0.0,
+      totalProfitLoss: 0.0,
       referralCode: `VXREF-${Math.floor(1000 + Math.random() * 9000)}`,
       referredByUsername: referrerUsername,
       createdAt: new Date().toISOString()
     };
 
+    if (initialReferralEarnings > 0) {
+      txs.unshift({
+        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+        userId: newUser.userId,
+        type: 'REFERRAL_REWARD',
+        amount: initialReferralEarnings,
+        currency: 'USD',
+        status: 'COMPLETED',
+        timestamp: new Date().toISOString(),
+        note: `Referral Signup Bonus ($5.00)`
+      });
+    }
+
     users.push(newUser);
     saveUsers(users);
+    saveTransactions(txs);
 
-    setMessage('Registration successful! Logging you in...');
+    setMessage(
+      initialReferralEarnings > 0
+        ? 'Registration successful! $5 Referral Signup Bonus applied to your account.'
+        : 'Registration successful! Welcome to Vaultix Income.'
+    );
+
     setTimeout(() => {
       saveCurrentSession(newUser);
       onLoginSuccess(newUser);
@@ -274,7 +318,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Referral Code (Optional)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-300">Invite / Referral Code (Optional)</label>
+                <span className="text-[10px] text-emerald-400 font-bold flex items-center space-x-1">
+                  <Gift className="w-3 h-3" />
+                  <span>Get $5 Signup Bonus</span>
+                </span>
+              </div>
               <input
                 type="text"
                 value={referralCodeInput}
