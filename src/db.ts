@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v7';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v7';
-const INVESTMENTS_KEY = 'vaultix_investments_v7';
-const INVITATIONS_KEY = 'vaultix_invitations_v7';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v7';
-const WALLETS_KEY = 'vaultix_wallets_v7';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v7';
-const PLANS_KEY = 'vaultix_plans_v7';
-const SESSION_KEY = 'vaultix_session_v7';
+const USERS_KEY = 'vaultix_users_v8';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v8';
+const INVESTMENTS_KEY = 'vaultix_investments_v8';
+const INVITATIONS_KEY = 'vaultix_invitations_v8';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v8';
+const WALLETS_KEY = 'vaultix_wallets_v8';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v8';
+const PLANS_KEY = 'vaultix_plans_v8';
+const SESSION_KEY = 'vaultix_session_v8';
 
 // Global Cloud Sync Endpoint to ensure Cross-Device Multi-Tenant Data Sync (iPhone, Android, Desktop, Vercel)
 const CLOUD_SYNC_URL = 'https://api.jsonbin.io/v3/b/66f82902e41b4d34e439d56f';
@@ -128,47 +128,145 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
   }
 ];
 
-// Seed Admin Account
-const SEED_ADMIN: User = {
-  userId: 'USR-000001',
-  accountId: 'VX-100001',
-  username: 'vaultix_admin',
-  fullName: 'Vaultix Team Administrator',
-  email: 'vaultixincometeam@outlook.com',
-  passwordHash: 'VaultixAdmin2026!Secured',
-  role: 'ADMIN',
-  accountStatus: 'ACTIVE',
-  balance: 0.0,
-  referralEarnings: 0.0,
-  totalDeposits: 0.0,
-  totalInvestments: 0.0,
-  totalProfitLoss: 0.0,
-  referralCode: 'VXREF-ADMIN',
-  createdAt: new Date().toISOString()
-};
-
-const SEED_USER: User = {
-  userId: 'USR-000002',
-  accountId: 'VX-100002',
-  username: 'testuser01',
-  fullName: 'Alexander Vault',
-  email: 'alexander@vaultix.com',
-  passwordHash: 'password123',
-  role: 'USER',
-  accountStatus: 'ACTIVE',
-  balance: 0.0,
-  referralEarnings: 0.0,
-  totalDeposits: 0.0,
-  totalInvestments: 0.0,
-  totalProfitLoss: 0.0,
-  referralCode: 'VXREF-8921',
-  createdAt: new Date().toISOString()
-};
+// Mandatory Pre-Configured Test Accounts (As required by Prompt)
+export const SEED_ACCOUNTS: User[] = [
+  {
+    userId: 'USR-000001',
+    accountId: 'VX-100001',
+    username: 'vaultix_admin',
+    fullName: 'Vaultix Team Administrator',
+    email: 'vaultixincometeam@outlook.com',
+    passwordHash: 'VaultixAdmin2026!Secured',
+    role: 'ADMIN',
+    accountStatus: 'ACTIVE',
+    balance: 0.0,
+    referralEarnings: 0.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-ADMIN',
+    createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-000002',
+    accountId: 'VX-100002',
+    username: 'testuser01',
+    fullName: 'Alexander Vault',
+    email: 'alexander@vaultix.com',
+    passwordHash: 'password123',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 10.0,
+    referralEarnings: 10.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-8921',
+    createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-000003',
+    accountId: 'VX-100003',
+    username: 'testuser1',
+    fullName: 'Test User One',
+    email: 'testuser1@vaultix.com',
+    passwordHash: 'password123',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 100.0,
+    referralEarnings: 10.0,
+    totalDeposits: 100.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-1001',
+    createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-000004',
+    accountId: 'VX-100004',
+    username: 'testuser2',
+    fullName: 'Test User Two',
+    email: 'testuser2@vaultix.com',
+    passwordHash: 'password123',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 5.0, // $5.00 Signup Bonus from referral
+    referralEarnings: 0.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-1002',
+    referredByUsername: 'testuser1',
+    createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-000005',
+    accountId: 'VX-100005',
+    username: 'testuser3',
+    fullName: 'Test User Three',
+    email: 'testuser3@vaultix.com',
+    passwordHash: 'password123',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 250.0,
+    referralEarnings: 0.0,
+    totalDeposits: 250.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-1003',
+    createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-000006',
+    accountId: 'VX-100006',
+    username: 'testuser4',
+    fullName: 'Test User Four',
+    email: 'testuser4@vaultix.com',
+    passwordHash: 'password123',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 50.0,
+    referralEarnings: 50.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-1004',
+    createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-000007',
+    accountId: 'VX-100007',
+    username: 'testuser5',
+    fullName: 'Test User Five',
+    email: 'testuser5@vaultix.com',
+    passwordHash: 'password123',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 0.0,
+    referralEarnings: 0.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-1005',
+    createdAt: new Date().toISOString()
+  }
+];
 
 export function initializeDatabase() {
   if (!localStorage.getItem(USERS_KEY)) {
-    localStorage.setItem(USERS_KEY, JSON.stringify([SEED_ADMIN, SEED_USER]));
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([]));
+    localStorage.setItem(USERS_KEY, JSON.stringify(SEED_ACCOUNTS));
+    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([
+      {
+        id: 'TX-549952',
+        userId: 'USR-000003',
+        type: 'DEPOSIT',
+        amount: 5133,
+        currency: 'USDT',
+        status: 'PENDING',
+        timestamp: new Date().toISOString(),
+        note: 'Deposit request #TX-549952 of 5133 USDT submitted! Status: PENDING admin verification.'
+      }
+    ]));
     localStorage.setItem(INVESTMENTS_KEY, JSON.stringify([]));
     localStorage.setItem(INVITATIONS_KEY, JSON.stringify([]));
     localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify([]));
@@ -176,7 +274,6 @@ export function initializeDatabase() {
     localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(DEFAULT_REFERRAL_CONFIG));
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
-  // Async fetch from cloud
   syncFromCloud();
 }
 
@@ -213,6 +310,18 @@ async function syncFromCloud() {
           record.investments.forEach((i: UserInvestment) => invMap.set(i.id, i));
           localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(Array.from(invMap.values())));
         }
+
+        if (Array.isArray(record.wallets) && record.wallets.length > 0) {
+          localStorage.setItem(WALLETS_KEY, JSON.stringify(record.wallets));
+        }
+
+        if (Array.isArray(record.plans) && record.plans.length > 0) {
+          localStorage.setItem(PLANS_KEY, JSON.stringify(record.plans));
+        }
+
+        if (record.referralConfig) {
+          localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(record.referralConfig));
+        }
       }
     }
   } catch {
@@ -225,7 +334,10 @@ async function syncToCloud() {
     const payload = {
       users: getUsersLocal(),
       transactions: getTransactionsLocal(),
-      investments: getInvestmentsLocal()
+      investments: getInvestmentsLocal(),
+      wallets: getWalletsLocal(),
+      plans: getPlansLocal(),
+      referralConfig: getReferralConfigLocal()
     };
     await fetch(CLOUD_SYNC_URL, {
       method: 'PUT',
@@ -245,9 +357,9 @@ async function syncToCloud() {
 function getUsersLocal(): User[] {
   try {
     const d = localStorage.getItem(USERS_KEY);
-    return d ? JSON.parse(d) : [SEED_ADMIN, SEED_USER];
+    return d ? JSON.parse(d) : SEED_ACCOUNTS;
   } catch {
-    return [SEED_ADMIN, SEED_USER];
+    return SEED_ACCOUNTS;
   }
 }
 
@@ -324,7 +436,7 @@ export function saveAuditLogs(logs: AuditLog[]) {
   localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify(logs));
 }
 
-export function getWallets(): CryptoWalletConfig[] {
+function getWalletsLocal(): CryptoWalletConfig[] {
   try {
     const d = localStorage.getItem(WALLETS_KEY);
     return d ? JSON.parse(d) : DEFAULT_WALLETS;
@@ -333,11 +445,16 @@ export function getWallets(): CryptoWalletConfig[] {
   }
 }
 
-export function saveWallets(wallets: CryptoWalletConfig[]) {
-  localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
+export function getWallets(): CryptoWalletConfig[] {
+  return getWalletsLocal();
 }
 
-export function getReferralConfig(): ReferralConfig {
+export function saveWallets(wallets: CryptoWalletConfig[]) {
+  localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
+  syncToCloud();
+}
+
+function getReferralConfigLocal(): ReferralConfig {
   try {
     const d = localStorage.getItem(REFERRAL_CONFIG_KEY);
     return d ? JSON.parse(d) : DEFAULT_REFERRAL_CONFIG;
@@ -346,11 +463,16 @@ export function getReferralConfig(): ReferralConfig {
   }
 }
 
-export function saveReferralConfig(cfg: ReferralConfig) {
-  localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
+export function getReferralConfig(): ReferralConfig {
+  return getReferralConfigLocal();
 }
 
-export function getPlans(): InvestmentPlan[] {
+export function saveReferralConfig(cfg: ReferralConfig) {
+  localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
+  syncToCloud();
+}
+
+function getPlansLocal(): InvestmentPlan[] {
   try {
     const d = localStorage.getItem(PLANS_KEY);
     return d ? JSON.parse(d) : DEFAULT_INVESTMENT_PLANS;
@@ -359,8 +481,13 @@ export function getPlans(): InvestmentPlan[] {
   }
 }
 
+export function getPlans(): InvestmentPlan[] {
+  return getPlansLocal();
+}
+
 export function savePlans(plans: InvestmentPlan[]) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
+  syncToCloud();
 }
 
 // CRITICAL: Session persistence across refreshes & tab reloads
@@ -478,7 +605,7 @@ export function submitDeposit(user: User, amount: number, currency: string): Tra
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Pending ${currency} Deposit Request`
+    note: `Deposit request #TX-${Math.floor(100000 + Math.random() * 900000)} of ${amount} ${currency} submitted! Status: PENDING admin verification.`
   };
 
   const txs = getTransactionsLocal();
