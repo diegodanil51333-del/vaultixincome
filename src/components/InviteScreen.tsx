@@ -28,7 +28,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
   const minThreshold = refConfig.withdrawalThreshold || 50.0;
   const NETWORK_FEE = 15.0;
 
-  const referralLink = `https://vaultix.income/invite?ref=${user.referralCode}`;
+  const referralLink = `${window.location.origin}/=${user.referralCode}`;
   const invitations = getInvitations().filter((inv) => inv.inviterUsername === user.username);
   const referredUsers = getUsers().filter((u) => u.referredByUsername === user.username);
 
