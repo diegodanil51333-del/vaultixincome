@@ -89,8 +89,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-4xl mx-auto">
               {/* Bitcoin (BTC) */}
-              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-amber-500/50 transition-all">
-                <div className="w-9 h-9 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-lg border border-amber-500/30">
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-[#F7931A]/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-[#F7931A]/20 text-[#F7931A] flex items-center justify-center font-extrabold text-lg border border-[#F7931A]/40">
                   ₿
                 </div>
                 <div className="text-left">
@@ -100,8 +100,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
               </div>
 
               {/* Ethereum (ETH) */}
-              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-indigo-500/50 transition-all">
-                <div className="w-9 h-9 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-lg border border-indigo-500/30">
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-[#627EEA]/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-[#627EEA]/20 text-[#627EEA] flex items-center justify-center font-extrabold text-lg border border-[#627EEA]/40">
                   Ξ
                 </div>
                 <div className="text-left">
@@ -111,8 +111,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
               </div>
 
               {/* Tether (USDT) */}
-              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-emerald-500/50 transition-all">
-                <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg border border-emerald-500/30">
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-[#26A17B]/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-[#26A17B]/20 text-[#26A17B] flex items-center justify-center font-extrabold text-lg border border-[#26A17B]/40">
                   ₮
                 </div>
                 <div className="text-left">
@@ -122,8 +122,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
               </div>
 
               {/* Solana (SOL) */}
-              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-purple-500/50 transition-all">
-                <div className="w-9 h-9 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs border border-purple-500/30">
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-[#9945FF]/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-[#9945FF]/20 text-[#9945FF] flex items-center justify-center font-extrabold text-xs border border-[#9945FF]/40">
                   SOL
                 </div>
                 <div className="text-left">
@@ -133,8 +133,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
               </div>
 
               {/* Ripple (XRP) */}
-              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-cyan-500/50 transition-all col-span-2 sm:col-span-1">
-                <div className="w-9 h-9 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs border border-cyan-500/30">
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-[#00AAE4]/50 transition-all col-span-2 sm:col-span-1">
+                <div className="w-9 h-9 rounded-full bg-[#00AAE4]/20 text-[#00AAE4] flex items-center justify-center font-extrabold text-xs border border-[#00AAE4]/40">
                   XRP
                 </div>
                 <div className="text-left">
