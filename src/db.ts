@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v11';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v11';
-const INVESTMENTS_KEY = 'vaultix_investments_v11';
-const INVITATIONS_KEY = 'vaultix_invitations_v11';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v11';
-const WALLETS_KEY = 'vaultix_wallets_v11';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v11';
-const PLANS_KEY = 'vaultix_plans_v11';
-const SESSION_KEY = 'vaultix_session_v11';
+const USERS_KEY = 'vaultix_users_v12';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v12';
+const INVESTMENTS_KEY = 'vaultix_investments_v12';
+const INVITATIONS_KEY = 'vaultix_invitations_v12';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v12';
+const WALLETS_KEY = 'vaultix_wallets_v12';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v12';
+const PLANS_KEY = 'vaultix_plans_v12';
+const SESSION_KEY = 'vaultix_session_v12';
 
 // Global Cloud Sync Endpoint to ensure Cross-Device Multi-Tenant Data Sync (iPhone, Android, Desktop, Vercel)
 const CLOUD_SYNC_URL = 'https://api.jsonbin.io/v3/b/66f82902e41b4d34e439d56f';
@@ -273,18 +273,7 @@ export const SEED_ACCOUNTS: User[] = [
 export function initializeDatabase() {
   if (!localStorage.getItem(USERS_KEY)) {
     localStorage.setItem(USERS_KEY, JSON.stringify(SEED_ACCOUNTS));
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([
-      {
-        id: 'TX-549952',
-        userId: 'USR-000003',
-        type: 'DEPOSIT',
-        amount: 5133,
-        currency: 'USDT',
-        status: 'PENDING',
-        timestamp: new Date().toISOString(),
-        note: 'Deposit request #TX-549952 of 5133 USDT submitted! Status: PENDING admin verification.'
-      }
-    ]));
+    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([])); // Clean start with NO stale seed deposit messages
     localStorage.setItem(INVESTMENTS_KEY, JSON.stringify([]));
     localStorage.setItem(INVITATIONS_KEY, JSON.stringify([]));
     localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify([]));
@@ -684,15 +673,16 @@ export function submitDeposit(user: User, amount: number, currency: string): Tra
     throw new Error('Deposit amount must be greater than zero.');
   }
 
+  const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
   const newTx: Transaction = {
-    id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+    id: txId,
     userId: user.userId,
     type: 'DEPOSIT',
     amount: amount,
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Deposit request #${Math.floor(100000 + Math.random() * 900000)} of ${amount} ${currency} submitted! Status: PENDING admin verification.`
+    note: `Deposit request #${txId} of ${amount} ${currency} submitted! Status: PENDING admin verification.`
   };
 
   const txs = getTransactionsLocal();
