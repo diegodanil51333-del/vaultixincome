@@ -90,7 +90,8 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
 
       setWithdrawAmount('');
       setWithdrawAddress('');
-      setWSuccess(`Withdrawal request #${tx.id} of $${amount.toFixed(2)} submitted! Status: PENDING admin authorization.`);
+      // REQUIREMENT 2: EXACT MSG FORMAT
+      setWSuccess(`Withdrawal request #${tx.id} of $${amount.toFixed(2)} submitted! Status: PENDING`);
     } catch (err: any) {
       setWError(err.message || 'Withdrawal request failed.');
     }

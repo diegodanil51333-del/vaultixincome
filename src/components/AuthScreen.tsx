@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
-import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, getReferralConfig } from '../db';
+import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions } from '../db';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift } from 'lucide-react';
 
 interface AuthScreenProps {
@@ -22,6 +22,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Auto-detect referral code from URL formats like `https://vaultixincome.vercel.app/=VXREF-3316` or `?ref=VXREF-3316`
+  useEffect(() => {
+    try {
+      const fullUrl = window.location.href;
+      let detectedCode = '';
+
+      // Check for `=VXREF-` pattern anywhere in path/query/hash
+      const matchEqual = fullUrl.match(/=(VXREF-[A-Za-z0-9-]+)/i);
+      if (matchEqual && matchEqual[1]) {
+        detectedCode = matchEqual[1];
+      } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const refParam = urlParams.get('ref');
+        if (refParam) {
+          detectedCode = refParam;
+        }
+      }
+
+      if (detectedCode) {
+        setReferralCodeInput(detectedCode.toUpperCase());
+        setTab('register');
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,40 +119,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    const refConfig = getReferralConfig();
     let referrerUsername: string | undefined = undefined;
-    let initialReferralEarnings = 0;
-
+    let initialUserBalance = 0.0;
     const txs = getTransactions();
 
     if (referralCodeInput.trim()) {
-      const referrer = users.find((u) => u.referralCode.toLowerCase() === referralCodeInput.trim().toLowerCase());
+      const codeClean = referralCodeInput.trim().toUpperCase();
+      const referrer = users.find((u) => u.referralCode.toUpperCase() === codeClean || u.username.toUpperCase() === codeClean);
       if (referrer) {
         referrerUsername = referrer.username;
-        // Referrer receives $25 referral bonus
-        referrer.referralEarnings += refConfig.bonusAmount || 25.0;
 
-        // Record referrer bonus transaction
+        // REQUIREMENT 5: Referrer receives $10.00 referral bonus
+        referrer.referralEarnings += 10.0;
+
         txs.unshift({
           id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
           userId: referrer.userId,
           type: 'REFERRAL_REWARD',
-          amount: refConfig.bonusAmount || 25.0,
+          amount: 10.0,
           currency: 'USD',
           status: 'COMPLETED',
           timestamp: new Date().toISOString(),
-          note: `Referral Reward for inviting @${username.trim()}`
+          note: `Referral Bonus for inviting @${username.trim()}`
         });
 
-        // Newly registered user receives $5 signup referral bonus
-        initialReferralEarnings = 5.0;
+        // REQUIREMENT 5: Newly registered user receives $5.00 referral bonus
+        initialUserBalance = 5.0;
       } else {
         setError('Invalid referral code provided. Registration cancelled.');
         return;
       }
     }
 
-    // REQUIREMENT 1: DEFAULT STARTING BALANCE IS $0.00
     const newUser: User = {
       userId: `USR-${Math.floor(100000 + Math.random() * 900000)}`,
       accountId: `VX-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -135,8 +160,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       passwordHash: password,
       role: 'USER',
       accountStatus: 'ACTIVE',
-      balance: 0.0, // Default starting balance is $0.00 until deposit is approved
-      referralEarnings: initialReferralEarnings,
+      balance: initialUserBalance, // $5.00 if referred, $0.00 if direct signup
+      referralEarnings: 0.0,
       totalDeposits: 0.0,
       totalInvestments: 0.0,
       totalProfitLoss: 0.0,
@@ -145,12 +170,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       createdAt: new Date().toISOString()
     };
 
-    if (initialReferralEarnings > 0) {
+    if (initialUserBalance > 0) {
       txs.unshift({
         id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
         userId: newUser.userId,
         type: 'REFERRAL_REWARD',
-        amount: initialReferralEarnings,
+        amount: initialUserBalance,
         currency: 'USD',
         status: 'COMPLETED',
         timestamp: new Date().toISOString(),
@@ -163,8 +188,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
     saveTransactions(txs);
 
     setMessage(
-      initialReferralEarnings > 0
-        ? 'Registration successful! $5 Referral Signup Bonus applied to your account.'
+      initialUserBalance > 0
+        ? 'Registration successful! $5.00 Referral Signup Bonus applied to your account.'
         : 'Registration successful! Welcome to Vaultix Income.'
     );
 
@@ -250,7 +275,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
             <button
               type="submit"
-              className="w-full bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold py-2.5 rounded-lg text-sm transition-all shadow-md mt-2"
+              className="w-full bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold py-2.5 rounded-lg text-sm transition-all shadow-md mt-2 cursor-pointer"
             >
               SECURE LOG IN
             </button>
@@ -319,7 +344,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-300">Invite / Referral Code (Optional)</label>
+                <label className="block text-xs font-semibold text-slate-300">Invite / Referral Code</label>
                 <span className="text-[10px] text-emerald-400 font-bold flex items-center space-x-1">
                   <Gift className="w-3 h-3" />
                   <span>Get $5 Signup Bonus</span>
@@ -329,14 +354,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 type="text"
                 value={referralCodeInput}
                 onChange={(e) => setReferralCodeInput(e.target.value)}
-                placeholder="e.g. VXREF-8921"
+                placeholder="e.g. VXREF-3316"
                 className="w-full bg-[#1D2432] border border-[#2A3447] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#D4AF37]"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-[#10B981] hover:bg-[#0d9668] text-black font-bold py-2.5 rounded-lg text-sm transition-all shadow-md mt-2"
+              className="w-full bg-[#10B981] hover:bg-[#0d9668] text-black font-bold py-2.5 rounded-lg text-sm transition-all shadow-md mt-2 cursor-pointer"
             >
               CREATE ACCOUNT
             </button>

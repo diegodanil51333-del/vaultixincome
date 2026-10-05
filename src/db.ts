@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v5';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v5';
-const INVESTMENTS_KEY = 'vaultix_investments_v5';
-const INVITATIONS_KEY = 'vaultix_invitations_v5';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v5';
-const WALLETS_KEY = 'vaultix_wallets_v5';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v5';
-const PLANS_KEY = 'vaultix_plans_v5';
-const SESSION_KEY = 'vaultix_session_v5';
+const USERS_KEY = 'vaultix_users_v6';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v6';
+const INVESTMENTS_KEY = 'vaultix_investments_v6';
+const INVITATIONS_KEY = 'vaultix_invitations_v6';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v6';
+const WALLETS_KEY = 'vaultix_wallets_v6';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v6';
+const PLANS_KEY = 'vaultix_plans_v6';
+const SESSION_KEY = 'vaultix_session_v6';
 
 // System Default Configurations
 export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
@@ -56,7 +56,7 @@ export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
 ];
 
 export const DEFAULT_REFERRAL_CONFIG: ReferralConfig = {
-  bonusAmount: 25.0,
+  bonusAmount: 10.0, // Inviter receives $10
   withdrawalThreshold: 50.0,
   isActive: true
 };
@@ -126,7 +126,7 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
 
 export function initializeDatabase() {
   if (!localStorage.getItem(USERS_KEY)) {
-    // SEED ADMIN: Zero fake hardcoded balances!
+    // Seed admin account - ZERO fake hardcoded balances!
     const seedAdmin: User = {
       userId: 'USR-000001',
       accountId: 'VX-100001',
@@ -281,7 +281,7 @@ export function savePlans(plans: InvestmentPlan[]) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
 }
 
-// CRITICAL: Fail-safe Session Persistence across refreshes & tab reloads
+// CRITICAL: Session persistence across refreshes & tab reloads
 export function getCurrentSession(): User | null {
   const d = localStorage.getItem(SESSION_KEY);
   if (!d) return null;
@@ -290,7 +290,6 @@ export function getCurrentSession(): User | null {
     const sessionUser: User = JSON.parse(d);
     if (!sessionUser || !sessionUser.userId) return null;
 
-    // Fetch fresh user record from USERS_KEY database
     const usersStr = localStorage.getItem(USERS_KEY);
     if (usersStr) {
       const users: User[] = JSON.parse(usersStr);
@@ -313,7 +312,7 @@ export function saveCurrentSession(user: User | null) {
   }
 }
 
-// --- REQUIREMENT 5 & 6: AUTOMATIC INVESTMENT MATURITY & PROFIT ENGINE ---
+// --- AUTOMATIC INVESTMENT MATURITY & PROFIT ENGINE ---
 
 export function processMaturedInvestments() {
   try {
@@ -384,11 +383,11 @@ export function processMaturedInvestments() {
       }
     }
   } catch {
-    // Fail silently on storage errors
+    // Fail-safe
   }
 }
 
-// --- SERVER-SIDE ATOMIC FINANCIAL TRANSACTIONS ---
+// --- SERVER-SIDE FINANCIAL TRANSACTIONS ---
 
 export function submitDeposit(user: User, amount: number, currency: string): Transaction {
   if (amount <= 0) {
@@ -541,12 +540,15 @@ export function cancelDepositTransaction(user: User, transactionId: string): Tra
   return targetTx;
 }
 
+// --- REQUIREMENT 1: INVESTMENT WITHDRAWAL & REGULAR WITHDRAWAL ---
+
 export function submitWithdrawalRequest(
   user: User,
   amount: number,
   currency: string,
   destinationAddress: string,
-  network: string
+  network: string,
+  investmentId?: string
 ): Transaction {
   if (amount <= 0) {
     throw new Error('Withdrawal amount must be greater than zero.');
@@ -562,26 +564,46 @@ export function submitWithdrawalRequest(
 
   const dbUser = users[uIdx];
 
-  if (dbUser.balance < amount) {
-    throw new Error(`Insufficient available balance. Available: $${dbUser.balance.toFixed(2)}.`);
+  // If this is an investment withdrawal, verify investment validity
+  if (investmentId) {
+    const invs = getInvestments();
+    const invIdx = invs.findIndex((i) => i.id === investmentId && i.userId === user.userId);
+    if (invIdx === -1) {
+      throw new Error('Selected investment record not found.');
+    }
+    const inv = invs[invIdx];
+    if (inv.status === 'WITHDRAWN' || inv.status === 'WITHDRAWAL_PENDING') {
+      throw new Error('This investment has already been withdrawn or has a pending withdrawal.');
+    }
+
+    // Mark investment as WITHDRAWAL_PENDING
+    inv.status = 'WITHDRAWAL_PENDING';
+    invs[invIdx] = inv;
+    saveInvestments(invs);
+  } else {
+    if (dbUser.balance < amount) {
+      throw new Error(`Insufficient available balance. Available: $${dbUser.balance.toFixed(2)}.`);
+    }
+    // Deduct regular withdrawal amount from available balance
+    dbUser.balance -= amount;
+    users[uIdx] = dbUser;
+    saveUsers(users);
+    saveCurrentSession(dbUser);
   }
 
-  // Reserve/deduct withdrawal amount
-  dbUser.balance -= amount;
-  users[uIdx] = dbUser;
-  saveUsers(users);
-  saveCurrentSession(dbUser);
-
   const txs = getTransactions();
+  const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
   const newTx: Transaction = {
-    id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+    id: txId,
     userId: dbUser.userId,
     type: 'WITHDRAWAL',
     amount: amount,
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Withdrawal of $${amount.toFixed(2)} ${currency} to ${destinationAddress} via ${network}`
+    note: investmentId
+      ? `Investment Withdrawal of $${amount.toFixed(2)} ${currency} to ${destinationAddress} via ${network}`
+      : `Withdrawal of $${amount.toFixed(2)} ${currency} to ${destinationAddress} via ${network}`
   };
 
   txs.unshift(newTx);
@@ -616,6 +638,14 @@ export function approveWithdrawalTransaction(adminUser: User, transactionId: str
 
   const users = getUsers();
   const targetUser = users.find((u) => u.userId === targetTx.userId) || adminUser;
+
+  // Check if this was an investment withdrawal and mark investment as WITHDRAWN
+  const invs = getInvestments();
+  const invIdx = invs.findIndex((i) => i.userId === targetTx.userId && i.status === 'WITHDRAWAL_PENDING');
+  if (invIdx !== -1) {
+    invs[invIdx].status = 'WITHDRAWN';
+    saveInvestments(invs);
+  }
 
   const logs = getAuditLogs();
   logs.unshift({
@@ -657,21 +687,28 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
-  // RESTORE RESERVED FUNDS
-  const users = getUsers();
-  const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
-  let updatedUser = adminUser;
-
-  if (uIdx !== -1) {
-    users[uIdx].balance += targetTx.amount;
-    updatedUser = users[uIdx];
-    saveUsers(users);
-
-    const currentSession = getCurrentSession();
-    if (currentSession?.userId === updatedUser.userId) {
-      saveCurrentSession(updatedUser);
+  // If this was an investment withdrawal, revert investment status back to COMPLETED or ACTIVE
+  const invs = getInvestments();
+  const invIdx = invs.findIndex((i) => i.userId === targetTx.userId && i.status === 'WITHDRAWAL_PENDING');
+  if (invIdx !== -1) {
+    invs[invIdx].status = 'COMPLETED';
+    saveInvestments(invs);
+  } else {
+    // If regular withdrawal, refund reserved funds back to user balance
+    const users = getUsers();
+    const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
+    if (uIdx !== -1) {
+      users[uIdx].balance += targetTx.amount;
+      saveUsers(users);
+      const currentSession = getCurrentSession();
+      if (currentSession?.userId === users[uIdx].userId) {
+        saveCurrentSession(users[uIdx]);
+      }
     }
   }
+
+  const users = getUsers();
+  const updatedUser = users.find((u) => u.userId === targetTx.userId) || adminUser;
 
   const logs = getAuditLogs();
   logs.unshift({
@@ -803,7 +840,7 @@ export function withdrawReferralEarnings(
     currency: 'USD',
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Referral Withdrawal to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)} ($15 Network Fee Confirmed)`
+    note: `Referral Withdrawal to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`
   };
 
   txs.unshift(newTx);
