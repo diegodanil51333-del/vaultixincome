@@ -21,7 +21,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
           </div>
 
           <nav className="hidden md:flex items-center space-x-8 text-xs font-semibold text-slate-300">
-            <a href="#features" className="hover:text-[#D4AF37] transition-colors">Features</a>
+            <a href="#assets" className="hover:text-[#D4AF37] transition-colors">Supported Assets</a>
+            <a href="#features" className="hover:text-[#D4AF37] transition-colors">Platform Features</a>
             <a href="#market" className="hover:text-[#D4AF37] transition-colors">Market Intelligence</a>
             <a href="#strategies" className="hover:text-[#D4AF37] transition-colors">Educational Strategies</a>
             <a href="#security" className="hover:text-[#D4AF37] transition-colors">Security</a>
@@ -46,9 +47,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
 
       {/* Hero Banner Section */}
       <section className="relative pt-12 pb-20 md:pt-20 md:pb-32 overflow-hidden border-b border-[#2A3447]">
-        {/* Background Visual Overlay */}
-        <div className="absolute inset-0 z-0 opacity-25 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=2000&auto=format&fit=crop')" }}></div>
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#0B0E14]/80 via-[#0B0E14]/95 to-[#0B0E14]"></div>
+        {/* Dark Premium Financial Radial Lighting Overlay */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#D4AF37]/10 rounded-full blur-[140px] pointer-events-none"></div>
+        <div className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8">
           <div className="inline-flex items-center space-x-2 bg-[#1D2432]/90 border border-[#D4AF37]/40 px-4 py-1.5 rounded-full shadow-lg">
@@ -80,23 +81,67 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
             </button>
           </div>
 
-          {/* Key Stat Highlights */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto pt-12 text-left">
-            <div className="bg-[#141923]/90 border border-[#2A3447] p-4 rounded-2xl backdrop-blur-sm">
-              <span className="text-[11px] text-slate-400 font-semibold block uppercase">Supported Assets</span>
-              <span className="text-lg font-extrabold text-[#D4AF37]">USDT, BTC, ETH, SOL, XRP</span>
-            </div>
-            <div className="bg-[#141923]/90 border border-[#2A3447] p-4 rounded-2xl backdrop-blur-sm">
-              <span className="text-[11px] text-slate-400 font-semibold block uppercase">Daily Yield Strategies</span>
-              <span className="text-lg font-extrabold text-emerald-400">1.2% – 3.5% / Day</span>
-            </div>
-            <div className="bg-[#141923]/90 border border-[#2A3447] p-4 rounded-2xl backdrop-blur-sm">
-              <span className="text-[11px] text-slate-400 font-semibold block uppercase">Withdrawal Routing</span>
-              <span className="text-lg font-extrabold text-[#06B6D4]">Direct Blockchain</span>
-            </div>
-            <div className="bg-[#141923]/90 border border-[#2A3447] p-4 rounded-2xl backdrop-blur-sm">
-              <span className="text-[11px] text-slate-400 font-semibold block uppercase">Security Architecture</span>
-              <span className="text-lg font-extrabold text-purple-400">Zero-Trust Custody</span>
+          {/* Authentic Vector Cryptocurrency Asset Grid */}
+          <div id="assets" className="pt-12">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest block mb-4">
+              SUPPORTED BENCHMARK ASSETS & VAULTS
+            </span>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-4xl mx-auto">
+              {/* Bitcoin (BTC) */}
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-amber-500/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-lg border border-amber-500/30">
+                  ₿
+                </div>
+                <div className="text-left">
+                  <span className="font-extrabold text-white text-xs block">Bitcoin</span>
+                  <span className="text-[10px] text-slate-400 font-mono">BTC</span>
+                </div>
+              </div>
+
+              {/* Ethereum (ETH) */}
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-indigo-500/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-lg border border-indigo-500/30">
+                  Ξ
+                </div>
+                <div className="text-left">
+                  <span className="font-extrabold text-white text-xs block">Ethereum</span>
+                  <span className="text-[10px] text-slate-400 font-mono">ETH</span>
+                </div>
+              </div>
+
+              {/* Tether (USDT) */}
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-emerald-500/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg border border-emerald-500/30">
+                  ₮
+                </div>
+                <div className="text-left">
+                  <span className="font-extrabold text-white text-xs block">Tether</span>
+                  <span className="text-[10px] text-slate-400 font-mono">USDT TRC20</span>
+                </div>
+              </div>
+
+              {/* Solana (SOL) */}
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-purple-500/50 transition-all">
+                <div className="w-9 h-9 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs border border-purple-500/30">
+                  SOL
+                </div>
+                <div className="text-left">
+                  <span className="font-extrabold text-white text-xs block">Solana</span>
+                  <span className="text-[10px] text-slate-400 font-mono">SOL</span>
+                </div>
+              </div>
+
+              {/* Ripple (XRP) */}
+              <div className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex items-center space-x-3 hover:border-cyan-500/50 transition-all col-span-2 sm:col-span-1">
+                <div className="w-9 h-9 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs border border-cyan-500/30">
+                  XRP
+                </div>
+                <div className="text-left">
+                  <span className="font-extrabold text-white text-xs block">Ripple</span>
+                  <span className="text-[10px] text-slate-400 font-mono">XRPL Tag</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -255,6 +300,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
             <p className="text-[10px] text-slate-600 mt-1">© 2026 Vaultix Income. All rights reserved.</p>
           </div>
           <div className="flex items-center space-x-6 text-[11px]">
+            <a href="#assets" className="hover:text-slate-300">Assets</a>
             <a href="#features" className="hover:text-slate-300">Features</a>
             <a href="#market" className="hover:text-slate-300">Market Data</a>
             <a href="#strategies" className="hover:text-slate-300">Educational Guide</a>
