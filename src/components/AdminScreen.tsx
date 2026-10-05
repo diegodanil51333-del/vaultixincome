@@ -364,8 +364,15 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                         {u.accountStatus}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-400 mt-1">
-                      {u.fullName} • {u.email} • ID: <span className="font-mono text-slate-300">{u.accountId}</span>
+                    <div className="text-xs text-slate-400 mt-1 space-y-0.5">
+                      <div>
+                        {u.fullName} • {u.email} • ID: <span className="font-mono text-slate-300">{u.accountId}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-[11px] pt-1">
+                        <span className="text-amber-400/90 font-semibold">Ref Code: <span className="font-mono text-amber-300">{u.referralCode || 'N/A'}</span></span>
+                        <span className="text-indigo-400 font-semibold">Referred By: <span className="font-mono text-indigo-300">{u.referredByUsername ? `@${u.referredByUsername}` : 'Direct Signup'}</span></span>
+                        <span className="text-emerald-400 font-semibold">Ref Rewards: <span className="font-mono text-emerald-300">${(u.referralEarnings || 0).toFixed(2)} USD</span></span>
+                      </div>
                     </div>
                   </div>
 
