@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v10';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v10';
-const INVESTMENTS_KEY = 'vaultix_investments_v10';
-const INVITATIONS_KEY = 'vaultix_invitations_v10';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v10';
-const WALLETS_KEY = 'vaultix_wallets_v10';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v10';
-const PLANS_KEY = 'vaultix_plans_v10';
-const SESSION_KEY = 'vaultix_session_v10';
+const USERS_KEY = 'vaultix_users_v11';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v11';
+const INVESTMENTS_KEY = 'vaultix_investments_v11';
+const INVITATIONS_KEY = 'vaultix_invitations_v11';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v11';
+const WALLETS_KEY = 'vaultix_wallets_v11';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v11';
+const PLANS_KEY = 'vaultix_plans_v11';
+const SESSION_KEY = 'vaultix_session_v11';
 
 // Global Cloud Sync Endpoint to ensure Cross-Device Multi-Tenant Data Sync (iPhone, Android, Desktop, Vercel)
 const CLOUD_SYNC_URL = 'https://api.jsonbin.io/v3/b/66f82902e41b4d34e439d56f';
@@ -128,7 +128,8 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
   }
 ];
 
-// Mandatory Pre-Configured Accounts (Including Admin with password Mmadu51366414@)
+// Legitimate Administrator: vaultix_admin (vaultixincometeam@outlook.com) with password Mmadu51366414@
+// diegodaniel4401@gmail.com is strictly role USER.
 export const SEED_ACCOUNTS: User[] = [
   {
     userId: 'USR-000001',
@@ -151,10 +152,10 @@ export const SEED_ACCOUNTS: User[] = [
     userId: 'USR-000000',
     accountId: 'VX-100000',
     username: 'diegodaniel4401',
-    fullName: 'Diego Daniel (Administrator)',
+    fullName: 'Diego Daniel',
     email: 'diegodaniel4401@gmail.com',
     passwordHash: 'Mmadu51366414@',
-    role: 'ADMIN',
+    role: 'USER', // REVOKED ADMIN: Normal User Access Only
     accountStatus: 'ACTIVE',
     balance: 0.0,
     referralEarnings: 0.0,
@@ -310,7 +311,13 @@ async function syncFromCloud() {
         const mergedMap = new Map<string, User>();
         SEED_ACCOUNTS.forEach((u) => mergedMap.set(u.userId, u));
         localUsers.forEach((u) => mergedMap.set(u.userId, u));
-        record.users.forEach((u: User) => mergedMap.set(u.userId, u));
+        record.users.forEach((u: User) => {
+          // Enforce that diegodaniel4401@gmail.com is strictly role USER
+          if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
+            u.role = 'USER';
+          }
+          mergedMap.set(u.userId, u);
+        });
         const mergedUsers = Array.from(mergedMap.values());
         localStorage.setItem(USERS_KEY, JSON.stringify(mergedUsers));
 
@@ -379,7 +386,13 @@ function getUsersLocal(): User[] {
     const parsed: User[] = d ? JSON.parse(d) : SEED_ACCOUNTS;
     const map = new Map<string, User>();
     SEED_ACCOUNTS.forEach((s) => map.set(s.userId, s));
-    parsed.forEach((p) => map.set(p.userId, p));
+    parsed.forEach((p) => {
+      // Enforce role USER for diegodaniel4401
+      if (p.email.toLowerCase() === 'diegodaniel4401@gmail.com' || p.username.toLowerCase() === 'diegodaniel4401') {
+        p.role = 'USER';
+      }
+      map.set(p.userId, p);
+    });
     return Array.from(map.values());
   } catch {
     return SEED_ACCOUNTS;
@@ -395,7 +408,12 @@ export function getUsers(): User[] {
 export function saveUsers(users: User[]) {
   const map = new Map<string, User>();
   SEED_ACCOUNTS.forEach((s) => map.set(s.userId, s));
-  users.forEach((u) => map.set(u.userId, u));
+  users.forEach((u) => {
+    if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
+      u.role = 'USER';
+    }
+    map.set(u.userId, u);
+  });
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
   syncToCloud();
@@ -518,7 +536,6 @@ export function savePlans(plans: InvestmentPlan[]) {
 }
 
 // --- TRIPLE-BACKED INDESTRUCTIBLE SESSION PERSISTENCE ENGINE ---
-// Uses localStorage + sessionStorage + Cookie backup so refresh never clears user login
 
 function getCookie(name: string): string | null {
   try {
@@ -562,6 +579,11 @@ export function getCurrentSession(): User | null {
 
 export function saveCurrentSession(user: User | null) {
   if (user) {
+    // Enforce role USER for diegodaniel4401
+    if (user.email.toLowerCase() === 'diegodaniel4401@gmail.com' || user.username.toLowerCase() === 'diegodaniel4401') {
+      user.role = 'USER';
+    }
+
     const jsonStr = JSON.stringify(user);
     try {
       localStorage.setItem(SESSION_KEY, jsonStr);
@@ -670,7 +692,7 @@ export function submitDeposit(user: User, amount: number, currency: string): Tra
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Deposit request #TX-${Math.floor(100000 + Math.random() * 900000)} of ${amount} ${currency} submitted! Status: PENDING admin verification.`
+    note: `Deposit request #${Math.floor(100000 + Math.random() * 900000)} of ${amount} ${currency} submitted! Status: PENDING admin verification.`
   };
 
   const txs = getTransactionsLocal();
@@ -699,7 +721,7 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
 
   targetTx.status = 'APPROVED';
   targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Deposit Approved and Credited`;
+  targetTx.note = `Deposit Approved and Credited ($${targetTx.amount.toFixed(2)} ${targetTx.currency})`;
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
