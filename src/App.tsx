@@ -4,6 +4,7 @@ import { initializeDatabase, getCurrentSession, saveCurrentSession, getUsers } f
 import { Navbar } from './components/Navbar';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { AuthScreen } from './components/AuthScreen';
+import { LandingPage } from './components/LandingPage';
 import { DashboardScreen } from './components/DashboardScreen';
 import { VaultsScreen } from './components/VaultsScreen';
 import { BuyCryptoScreen } from './components/BuyCryptoScreen';
@@ -18,6 +19,8 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentTab, setCurrentTabState] = useState<NavTab>('dashboard');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showAuthScreen, setShowAuthScreen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
     initializeDatabase();
@@ -55,10 +58,16 @@ export function App() {
     }
   };
 
+  const handleOpenAuth = (mode: 'login' | 'register') => {
+    setAuthMode(mode);
+    setShowAuthScreen(true);
+  };
+
   const handleLoginSuccess = (user: User) => {
     const freshUser = getUsers().find((u) => u.userId === user.userId || u.email.toLowerCase() === user.email.toLowerCase()) || user;
     setCurrentUser(freshUser);
     saveCurrentSession(freshUser);
+    setShowAuthScreen(false);
 
     if (freshUser.role === 'ADMIN') {
       setCurrentTab('admin');
@@ -81,6 +90,7 @@ export function App() {
       // Fallback
     }
     setCurrentUser(null);
+    setShowAuthScreen(false);
     setCurrentTabState('dashboard');
   };
 
@@ -93,10 +103,21 @@ export function App() {
     );
   }
 
+  // Unauthenticated Visitors: Public Landing Page or Auth Screen
   if (!currentUser) {
-    return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
+    if (showAuthScreen) {
+      return (
+        <AuthScreen
+          onLoginSuccess={handleLoginSuccess}
+          initialTab={authMode}
+          onBackToLanding={() => setShowAuthScreen(false)}
+        />
+      );
+    }
+    return <LandingPage onOpenAuth={handleOpenAuth} />;
   }
 
+  // Authenticated Users: Full Wealth Management Application
   return (
     <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col font-sans">
       <Navbar user={currentUser} onLogout={handleLogout} />

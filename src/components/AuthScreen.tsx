@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions } from '../db';
-import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift } from 'lucide-react';
+import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: User) => void;
+  initialTab?: 'login' | 'register';
+  onBackToLanding?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialTab = 'login', onBackToLanding }) => {
+  const [tab, setTab] = useState<'login' | 'register'>(initialTab);
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
@@ -22,6 +24,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
 
   // Auto-detect referral code from URL formats like `https://vaultixincome.vercel.app/=VXREF-3316` or `?ref=VXREF-3316`
   useEffect(() => {
@@ -203,7 +209,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col items-center justify-center p-4 relative">
+      {onBackToLanding && (
+        <button
+          onClick={onBackToLanding}
+          className="absolute top-6 left-6 text-xs text-slate-400 hover:text-[#D4AF37] flex items-center space-x-1.5 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Landing Page</span>
+        </button>
+      )}
+
       <div className="w-full max-w-md bg-[#141923] border border-[#2A3447] rounded-2xl p-6 sm:p-8 shadow-2xl">
         <div className="flex flex-col items-center text-center mb-6">
           <img src="/logo.jpg" alt="Vaultix Income" className="w-20 h-20 rounded-full border-2 border-[#D4AF37]/60 object-cover shadow-lg mb-3" />
@@ -214,7 +230,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         <div className="flex border-b border-[#2A3447] mb-6">
           <button
             onClick={() => { setTab('login'); setError(null); setMessage(null); }}
-            className={`flex-1 py-2.5 text-sm font-bold border-b-2 transition-all ${
+            className={`flex-1 py-2.5 text-sm font-bold border-b-2 transition-all cursor-pointer ${
               tab === 'login' ? 'border-[#D4AF37] text-[#D4AF37]' : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -222,7 +238,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           </button>
           <button
             onClick={() => { setTab('register'); setError(null); setMessage(null); }}
-            className={`flex-1 py-2.5 text-sm font-bold border-b-2 transition-all ${
+            className={`flex-1 py-2.5 text-sm font-bold border-b-2 transition-all cursor-pointer ${
               tab === 'register' ? 'border-[#D4AF37] text-[#D4AF37]' : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >

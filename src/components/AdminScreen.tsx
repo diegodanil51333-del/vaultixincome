@@ -32,13 +32,13 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // REALTIME DATA REVALIDATION
+  // INSTANT 1.5s REALTIME DATA REVALIDATION ENGINE FOR ADMIN OVERVIEW
   useEffect(() => {
     const interval = setInterval(() => {
       setUsers(getUsers());
       setTransactions(getTransactions());
       setAuditLogs(getAuditLogs());
-    }, 3000);
+    }, 1500);
     return () => clearInterval(interval);
   }, []);
 
@@ -427,19 +427,19 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleApproveDeposit(tx.id)}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all"
+                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => handleRejectDeposit(tx.id)}
-                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all"
+                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer"
                         >
                           Reject
                         </button>
                         <button
                           onClick={() => handleCancelDeposit(tx.id)}
-                          className="bg-[#2A3447] hover:bg-slate-600 text-slate-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all"
+                          className="bg-[#2A3447] hover:bg-slate-600 text-slate-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer"
                         >
                           Cancel
                         </button>
@@ -453,7 +453,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
         </div>
       )}
 
-      {/* REQUIREMENT 3 & 4: TAB 3 - PENDING WITHDRAWALS & DESTINATION ADDRESS DISCOVERY */}
+      {/* TAB 3: Pending Withdrawal Authorization Requests */}
       {tab === 'withdrawals' && (
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center space-x-2">
@@ -486,7 +486,6 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                           Amount: <span className="text-rose-400 font-extrabold">${tx.amount.toFixed(2)} {tx.currency}</span> • Submitted: {new Date(tx.timestamp).toLocaleString()}
                         </div>
 
-                        {/* CLEARLY DISPLAY DESTINATION WALLET ADDRESS */}
                         <div className="bg-[#0B0E14] border border-slate-700/80 rounded-xl p-2.5 mt-2">
                           <span className="text-[10px] text-amber-400 font-bold block uppercase tracking-wider">Destination Crypto Wallet Address & Note:</span>
                           <span className="font-mono text-xs text-[#D4AF37] select-all font-bold break-all block mt-0.5">
@@ -498,14 +497,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                       <div className="flex items-center space-x-2 shrink-0 self-start md:self-center">
                         <button
                           onClick={() => handleApproveWithdrawal(tx.id)}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md"
+                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md cursor-pointer"
                         >
                           Approve Withdrawal
                         </button>
 
                         <button
                           onClick={() => handleCancelWithdrawal(tx.id)}
-                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md"
+                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md cursor-pointer"
                         >
                           Cancel & Refund
                         </button>
@@ -601,7 +600,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
 
             <button
               onClick={() => handleSaveWallets(wallets)}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-md"
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-md cursor-pointer"
             >
               SAVE CRYPTO WALLET CONFIGURATIONS
             </button>
@@ -735,7 +734,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
 
           <button
             type="submit"
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-md"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-md cursor-pointer"
           >
             SAVE REFERRAL CONFIGURATION
           </button>
@@ -815,7 +814,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
               />
               <button
                 type="submit"
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md"
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer"
               >
                 APPLY BALANCE ADJUSTMENT
               </button>

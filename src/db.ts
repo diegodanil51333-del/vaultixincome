@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v12';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v12';
-const INVESTMENTS_KEY = 'vaultix_investments_v12';
-const INVITATIONS_KEY = 'vaultix_invitations_v12';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v12';
-const WALLETS_KEY = 'vaultix_wallets_v12';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v12';
-const PLANS_KEY = 'vaultix_plans_v12';
-const SESSION_KEY = 'vaultix_session_v12';
+const USERS_KEY = 'vaultix_users_v13';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
+const INVESTMENTS_KEY = 'vaultix_investments_v13';
+const INVITATIONS_KEY = 'vaultix_invitations_v13';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v13';
+const WALLETS_KEY = 'vaultix_wallets_v13';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v13';
+const PLANS_KEY = 'vaultix_plans_v13';
+const SESSION_KEY = 'vaultix_session_v13';
 
 // Global Cloud Sync Endpoint to ensure Cross-Device Multi-Tenant Data Sync (iPhone, Android, Desktop, Vercel)
 const CLOUD_SYNC_URL = 'https://api.jsonbin.io/v3/b/66f82902e41b4d34e439d56f';

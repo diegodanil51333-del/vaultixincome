@@ -3,6 +3,7 @@ import { User } from '../types';
 import { getInvestments, getTransactions } from '../db';
 import { Wallet, TrendingUp, ShieldCheck, ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
 import { HowItWorks } from './HowItWorks';
+import { MarketTracker } from './MarketTracker';
 
 interface DashboardScreenProps {
   user: User;
@@ -40,14 +41,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           <div className="flex items-center gap-2">
             <button
               onClick={() => onNavigateToTab('wallet')}
-              className="flex-1 md:flex-initial bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md"
+              className="flex-1 md:flex-initial bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md cursor-pointer"
             >
               <Wallet className="w-4 h-4" />
               <span>Deposit Funds</span>
             </button>
             <button
               onClick={() => onNavigateToTab('vaults')}
-              className="flex-1 md:flex-initial bg-[#10B981] hover:bg-[#0d9668] text-black font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md"
+              className="flex-1 md:flex-initial bg-[#10B981] hover:bg-[#0d9668] text-black font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md cursor-pointer"
             >
               <TrendingUp className="w-4 h-4" />
               <span>Explore Vaults</span>
@@ -55,7 +56,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           </div>
         </div>
 
-        {/* Dynamic Financial Metrics Cards (Zero Fake Defaults!) */}
+        {/* Dynamic Financial Metrics Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6 pt-6 border-t border-[#2A3447]">
           <div className="bg-[#0B0E14]/60 p-3.5 rounded-xl border border-[#2A3447]/60">
             <span className="text-[11px] text-slate-400 font-semibold block">Main Balance</span>
@@ -87,6 +88,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
         </div>
       </div>
 
+      {/* Live Market Tracker Component */}
+      <MarketTracker />
+
       {/* How It Works Section */}
       <HowItWorks />
 
@@ -99,7 +103,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           </h3>
           <button
             onClick={() => onNavigateToTab('vaults')}
-            className="text-xs font-semibold text-[#D4AF37] hover:underline"
+            className="text-xs font-semibold text-[#D4AF37] hover:underline cursor-pointer"
           >
             + Subscribe New Vault
           </button>
@@ -168,7 +172,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
                   <div className={`font-bold ${tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'ADMIN_CREDIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'ADMIN_CREDIT' ? '+' : '-'}${tx.amount.toFixed(2)}
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-400">{tx.status}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    tx.status === 'APPROVED' || tx.status === 'COMPLETED'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : tx.status === 'PENDING'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'bg-rose-500/20 text-rose-400'
+                  }`}>
+                    {tx.status === 'PENDING' ? 'Processing' : tx.status === 'APPROVED' || tx.status === 'COMPLETED' ? 'Completed' : 'Cancelled'}
+                  </span>
                 </div>
               </div>
             ))}
