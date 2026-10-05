@@ -32,14 +32,22 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // INSTANT 1.5s REALTIME DATA REVALIDATION ENGINE FOR ADMIN OVERVIEW
+  // INSTANT REALTIME DATA REVALIDATION ENGINE FOR ADMIN OVERVIEW
   useEffect(() => {
-    const interval = setInterval(() => {
-      setUsers(getUsers());
-      setTransactions(getTransactions());
-      setAuditLogs(getAuditLogs());
-    }, 1500);
-    return () => clearInterval(interval);
+    refreshData();
+    const interval = setInterval(refreshData, 1000);
+
+    const handleUpdate = () => refreshData();
+    window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   const refreshData = () => {

@@ -120,22 +120,38 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
     asset: 'USDT/USDC',
     dailyYield: 3.5,
     minDeposit: 1000,
-    maxDeposit: 100000,
-    lockDays: 30,
-    riskLevel: 'High Yield',
-    description: 'Institutional-grade delta-neutral yield farming with max capital efficiency.',
+    maxDeposit: 250000,
+    lockDays: 60,
+    riskLevel: 'Moderate',
+    description: 'Institutional-grade yield compounding across multi-token liquidity protocols.',
     isActive: true
   }
 ];
 
-// Legitimate Administrator: vaultix_admin (vaultixincometeam@outlook.com) with password Mmadu51366414@
-// diegodaniel4401@gmail.com is strictly role USER.
-export const SEED_ACCOUNTS: User[] = [
+// Preserved Initial Production Accounts Matrix
+const SEED_ACCOUNTS: User[] = [
+  {
+    userId: 'USR-000000',
+    accountId: 'VX-100000',
+    username: 'diegodaniel4401',
+    fullName: 'Diego Daniel',
+    email: 'diegodaniel4401@gmail.com',
+    passwordHash: 'diegodaniel4401',
+    role: 'USER', // Strictly role USER
+    accountStatus: 'ACTIVE',
+    balance: 0.0,
+    referralEarnings: 0.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-4401',
+    createdAt: new Date().toISOString()
+  },
   {
     userId: 'USR-000001',
     accountId: 'VX-100001',
     username: 'vaultix_admin',
-    fullName: 'Vaultix Team Administrator',
+    fullName: 'Vaultix Administrator',
     email: 'vaultixincometeam@outlook.com',
     passwordHash: 'Mmadu51366414@',
     role: 'ADMIN',
@@ -146,40 +162,6 @@ export const SEED_ACCOUNTS: User[] = [
     totalInvestments: 0.0,
     totalProfitLoss: 0.0,
     referralCode: 'VXREF-ADMIN',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000000',
-    accountId: 'VX-100000',
-    username: 'diegodaniel4401',
-    fullName: 'Diego Daniel',
-    email: 'diegodaniel4401@gmail.com',
-    passwordHash: 'Mmadu51366414@',
-    role: 'USER', // REVOKED ADMIN: Normal User Access Only
-    accountStatus: 'ACTIVE',
-    balance: 0.0,
-    referralEarnings: 0.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-DIEGO',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000002',
-    accountId: 'VX-100002',
-    username: 'testuser01',
-    fullName: 'Alexander Vault',
-    email: 'alexander@vaultix.com',
-    passwordHash: 'password123',
-    role: 'USER',
-    accountStatus: 'ACTIVE',
-    balance: 10.0,
-    referralEarnings: 10.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-8921',
     createdAt: new Date().toISOString()
   },
   {
@@ -273,7 +255,7 @@ export const SEED_ACCOUNTS: User[] = [
 export function initializeDatabase() {
   if (!localStorage.getItem(USERS_KEY)) {
     localStorage.setItem(USERS_KEY, JSON.stringify(SEED_ACCOUNTS));
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([])); // Clean start with NO stale seed deposit messages
+    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([]));
     localStorage.setItem(INVESTMENTS_KEY, JSON.stringify([]));
     localStorage.setItem(INVITATIONS_KEY, JSON.stringify([]));
     localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify([]));
@@ -282,7 +264,7 @@ export function initializeDatabase() {
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
   syncFromCloud();
-  syncToCloud(); // Immediately push seed accounts to cloud bin
+  syncToCloud();
 }
 
 // --- CLOUD SYNC ENGINE FOR WORLDWIDE CROSS-DEVICE REALTIME CONSISTENCY ---
@@ -295,13 +277,11 @@ async function syncFromCloud() {
       const json = await res.json();
       const record = json.record;
       if (record && Array.isArray(record.users)) {
-        // Merge cloud users with local users and SEED_ACCOUNTS
         const localUsers = getUsersLocal();
         const mergedMap = new Map<string, User>();
         SEED_ACCOUNTS.forEach((u) => mergedMap.set(u.userId, u));
         localUsers.forEach((u) => mergedMap.set(u.userId, u));
         record.users.forEach((u: User) => {
-          // Enforce that diegodaniel4401@gmail.com is strictly role USER
           if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
             u.role = 'USER';
           }
@@ -367,6 +347,22 @@ async function syncToCloud() {
   }
 }
 
+// Helper to emit real-time window update events across components and tabs
+function emitDataUpdateEvents(type: 'users' | 'txs' | 'all' = 'all') {
+  try {
+    if (typeof window !== 'undefined') {
+      if (type === 'users' || type === 'all') {
+        window.dispatchEvent(new CustomEvent('vaultix_users_updated'));
+      }
+      if (type === 'txs' || type === 'all') {
+        window.dispatchEvent(new CustomEvent('vaultix_txs_updated'));
+      }
+    }
+  } catch {
+    // Fallback
+  }
+}
+
 // --- LOCAL & GLOBAL DATA ACCESSORS ---
 
 function getUsersLocal(): User[] {
@@ -376,7 +372,6 @@ function getUsersLocal(): User[] {
     const map = new Map<string, User>();
     SEED_ACCOUNTS.forEach((s) => map.set(s.userId, s));
     parsed.forEach((p) => {
-      // Enforce role USER for diegodaniel4401
       if (p.email.toLowerCase() === 'diegodaniel4401@gmail.com' || p.username.toLowerCase() === 'diegodaniel4401') {
         p.role = 'USER';
       }
@@ -406,6 +401,7 @@ export function saveUsers(users: User[]) {
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
   syncToCloud();
+  emitDataUpdateEvents('users');
 }
 
 function getTransactionsLocal(): Transaction[] {
@@ -424,6 +420,7 @@ export function getTransactions(): Transaction[] {
 export function saveTransactions(txs: Transaction[]) {
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
   syncToCloud();
+  emitDataUpdateEvents('txs');
 }
 
 function getInvestmentsLocal(): UserInvestment[] {
@@ -568,7 +565,6 @@ export function getCurrentSession(): User | null {
 
 export function saveCurrentSession(user: User | null) {
   if (user) {
-    // Enforce role USER for diegodaniel4401
     if (user.email.toLowerCase() === 'diegodaniel4401@gmail.com' || user.username.toLowerCase() === 'diegodaniel4401') {
       user.role = 'USER';
     }
@@ -660,6 +656,7 @@ export function processMaturedInvestments() {
         }
       }
       syncToCloud();
+      emitDataUpdateEvents('all');
     }
   } catch {
     // Fail-safe
@@ -682,7 +679,7 @@ export function submitDeposit(user: User, amount: number, currency: string): Tra
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Deposit request #${txId} of ${amount} ${currency} submitted! Status: PENDING admin verification.`
+    note: `Deposit request #${txId} of ${amount} ${currency} submitted! Status: PENDING`
   };
 
   const txs = getTransactionsLocal();
@@ -711,7 +708,7 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
 
   targetTx.status = 'APPROVED';
   targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Deposit Approved and Credited ($${targetTx.amount.toFixed(2)} ${targetTx.currency})`;
+  targetTx.note = `Deposit ${targetTx.id} approved! Credited $${targetTx.amount.toFixed(2)}.`;
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
@@ -770,12 +767,9 @@ export function rejectDepositTransaction(adminUser: User, transactionId: string,
 
   targetTx.status = 'REJECTED';
   targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Deposit Rejected: ${reason || 'Administrative rejection'}`;
+  targetTx.note = `Deposit ${targetTx.id} cancelled.`;
   txs[txIdx] = targetTx;
   saveTransactions(txs);
-
-  const users = getUsersLocal();
-  const targetUser = users.find((u) => u.userId === targetTx.userId);
 
   const logs = getAuditLogs();
   logs.unshift({
@@ -783,9 +777,9 @@ export function rejectDepositTransaction(adminUser: User, transactionId: string,
     adminId: adminUser.userId,
     action: 'DEPOSIT_REJECTED',
     targetUserId: targetTx.userId,
-    targetUsername: targetUser?.username || 'Unknown',
+    targetUsername: targetTx.userId,
     transactionId: targetTx.id,
-    reason: reason || 'Administrative rejection',
+    reason: reason || 'Cancelled',
     timestamp: new Date().toISOString()
   });
   saveAuditLogs(logs);
@@ -793,31 +787,8 @@ export function rejectDepositTransaction(adminUser: User, transactionId: string,
   return targetTx;
 }
 
-export function cancelDepositTransaction(user: User, transactionId: string): Transaction {
-  const txs = getTransactionsLocal();
-  const txIdx = txs.findIndex((t) => t.id === transactionId);
-
-  if (txIdx === -1) {
-    throw new Error('Transaction not found.');
-  }
-
-  const targetTx = txs[txIdx];
-
-  if (user.role !== 'ADMIN' && targetTx.userId !== user.userId) {
-    throw new Error('UNAUTHORIZED: Cannot cancel another user deposit.');
-  }
-
-  if (targetTx.status !== 'PENDING') {
-    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
-  }
-
-  targetTx.status = 'CANCELLED';
-  targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Deposit Cancelled`;
-  txs[txIdx] = targetTx;
-  saveTransactions(txs);
-
-  return targetTx;
+export function cancelDepositTransaction(adminUser: User, transactionId: string): Transaction {
+  return rejectDepositTransaction(adminUser, transactionId, 'Cancelled');
 }
 
 export function submitWithdrawalRequest(
@@ -825,65 +796,48 @@ export function submitWithdrawalRequest(
   amount: number,
   currency: string,
   destinationAddress: string,
-  network: string,
+  destinationNetwork: string,
   investmentId?: string
 ): Transaction {
   if (amount <= 0) {
     throw new Error('Withdrawal amount must be greater than zero.');
   }
 
-  if (!destinationAddress.trim()) {
-    throw new Error('Please enter a valid destination crypto wallet address.');
-  }
-
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === user.userId);
-  if (uIdx === -1) throw new Error('User account not found.');
-
-  const dbUser = users[uIdx];
-
-  if (investmentId) {
-    const invs = getInvestmentsLocal();
-    const invIdx = invs.findIndex((i) => i.id === investmentId && i.userId === user.userId);
-    if (invIdx === -1) {
-      throw new Error('Selected investment record not found.');
-    }
-    const inv = invs[invIdx];
-    if (inv.status === 'WITHDRAWN' || inv.status === 'WITHDRAWAL_PENDING') {
-      throw new Error('This investment has already been withdrawn or has a pending withdrawal.');
-    }
-
-    inv.status = 'WITHDRAWAL_PENDING';
-    invs[invIdx] = inv;
-    saveInvestments(invs);
-  } else {
-    if (dbUser.balance < amount) {
-      throw new Error(`Insufficient available balance. Available: $${dbUser.balance.toFixed(2)}.`);
-    }
-    dbUser.balance -= amount;
-    users[uIdx] = dbUser;
-    saveUsers(users);
-    saveCurrentSession(dbUser);
+  if (uIdx === -1) {
+    throw new Error('User account not found.');
   }
 
-  const txs = getTransactionsLocal();
+  const targetUser = users[uIdx];
+  if (targetUser.balance < amount && !investmentId) {
+    throw new Error(`Insufficient funds. Available balance: $${targetUser.balance.toFixed(2)}.`);
+  }
+
+  if (!investmentId) {
+    // Deduct withdrawal amount upfront for normal withdrawals
+    targetUser.balance -= amount;
+    users[uIdx] = targetUser;
+    saveUsers(users);
+  }
+
   const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
   const newTx: Transaction = {
     id: txId,
-    userId: dbUser.userId,
+    userId: user.userId,
     type: 'WITHDRAWAL',
     amount: amount,
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: investmentId
-      ? `Investment Withdrawal of $${amount.toFixed(2)} ${currency} to ${destinationAddress} via ${network}`
-      : `Withdrawal of $${amount.toFixed(2)} ${currency} to ${destinationAddress} via ${network}`
+    note: `Withdrawal request #${txId} of $${amount.toFixed(2)} submitted! Status: PENDING`
   };
 
+  const txs = getTransactionsLocal();
   txs.unshift(newTx);
   saveTransactions(txs);
 
+  saveCurrentSession(targetUser);
   return newTx;
 }
 
@@ -900,26 +854,18 @@ export function approveWithdrawalTransaction(adminUser: User, transactionId: str
   }
 
   const targetTx = txs[txIdx];
-
-  if (targetTx.status !== 'PENDING' || targetTx.type !== 'WITHDRAWAL') {
+  if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
   }
 
   targetTx.status = 'APPROVED';
   targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `${targetTx.note} - Approved and Dispatched`;
+  targetTx.note = `Withdrawal ${targetTx.id} approved and processed!`;
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
   const users = getUsersLocal();
-  const targetUser = users.find((u) => u.userId === targetTx.userId) || adminUser;
-
-  const invs = getInvestmentsLocal();
-  const invIdx = invs.findIndex((i) => i.userId === targetTx.userId && i.status === 'WITHDRAWAL_PENDING');
-  if (invIdx !== -1) {
-    invs[invIdx].status = 'WITHDRAWN';
-    saveInvestments(invs);
-  }
+  const targetUser = users.find((u) => u.userId === targetTx.userId) || { ...adminUser };
 
   const logs = getAuditLogs();
   logs.unshift({
@@ -927,9 +873,8 @@ export function approveWithdrawalTransaction(adminUser: User, transactionId: str
     adminId: adminUser.userId,
     action: 'WITHDRAWAL_APPROVED',
     targetUserId: targetTx.userId,
-    targetUsername: targetUser.username,
+    targetUsername: targetUser.username || targetTx.userId,
     transactionId: targetTx.id,
-    newValue: `Approved $${targetTx.amount.toFixed(2)} ${targetTx.currency} withdrawal`,
     timestamp: new Date().toISOString()
   });
   saveAuditLogs(logs);
@@ -950,97 +895,83 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
   }
 
   const targetTx = txs[txIdx];
-
-  if (targetTx.status !== 'PENDING' || targetTx.type !== 'WITHDRAWAL') {
+  if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
   }
 
-  targetTx.status = 'CANCELLED';
+  targetTx.status = 'REJECTED';
   targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Withdrawal Cancelled: ${reason || 'Administrative Cancellation'} (Funds Restored)`;
+  targetTx.note = `Withdrawal ${targetTx.id} cancelled. Principal refunded.`;
   txs[txIdx] = targetTx;
-  saveTransactions(txs);
 
-  const invs = getInvestmentsLocal();
-  const invIdx = invs.findIndex((i) => i.userId === targetTx.userId && i.status === 'WITHDRAWAL_PENDING');
-  if (invIdx !== -1) {
-    invs[invIdx].status = 'COMPLETED';
-    saveInvestments(invs);
-  } else {
-    const users = getUsersLocal();
-    const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
-    if (uIdx !== -1) {
-      users[uIdx].balance += targetTx.amount;
-      saveUsers(users);
-      const currentSession = getCurrentSession();
-      if (currentSession?.userId === users[uIdx].userId) {
-        saveCurrentSession(users[uIdx]);
-      }
+  const users = getUsersLocal();
+  const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
+  let targetUser = users[uIdx];
+
+  if (uIdx !== -1) {
+    targetUser.balance += targetTx.amount;
+    users[uIdx] = targetUser;
+    saveUsers(users);
+
+    const currentSession = getCurrentSession();
+    if (currentSession?.userId === targetUser.userId) {
+      saveCurrentSession(targetUser);
     }
   }
 
-  const users = getUsersLocal();
-  const updatedUser = users.find((u) => u.userId === targetTx.userId) || adminUser;
+  saveTransactions(txs);
 
   const logs = getAuditLogs();
   logs.unshift({
     id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
     adminId: adminUser.userId,
-    action: 'WITHDRAWAL_CANCELLED',
+    action: 'WITHDRAWAL_REJECTED',
     targetUserId: targetTx.userId,
-    targetUsername: updatedUser.username,
+    targetUsername: targetUser ? targetUser.username : targetTx.userId,
     transactionId: targetTx.id,
-    reason: reason || 'Administrative Cancellation',
-    newValue: `Refunded $${targetTx.amount.toFixed(2)} to balance`,
+    reason: reason || 'Cancelled',
     timestamp: new Date().toISOString()
   });
   saveAuditLogs(logs);
 
-  return { user: updatedUser, tx: targetTx };
+  return { user: targetUser || adminUser, tx: targetTx };
 }
 
-export function subscribeInvestmentPlan(user: User, planId: string, amount: number): { user: User; inv: UserInvestment } {
+export function subscribeInvestmentPlan(user: User, planId: string, amount: number): { user: User; investment: UserInvestment } {
+  if (amount <= 0) {
+    throw new Error('Investment amount must be greater than zero.');
+  }
+
   const plans = getPlans();
   const plan = plans.find((p) => p.id === planId);
-
   if (!plan) {
-    throw new Error('Selected investment plan does not exist.');
+    throw new Error('Selected investment plan not found.');
   }
 
-  if (!plan.isActive) {
-    throw new Error('Selected investment plan is currently inactive.');
-  }
-
-  if (amount < plan.minDeposit) {
-    throw new Error(`Minimum investment limit for ${plan.name} is $${plan.minDeposit}.`);
-  }
-
-  if (amount > plan.maxDeposit) {
-    throw new Error(`Maximum investment limit for ${plan.name} is $${plan.maxDeposit}.`);
+  if (amount < plan.minDeposit || amount > plan.maxDeposit) {
+    throw new Error(`Amount must be between $${plan.minDeposit} and $${plan.maxDeposit} for ${plan.name}.`);
   }
 
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === user.userId);
-  if (uIdx === -1) throw new Error('User account not found.');
-
-  const dbUser = users[uIdx];
-
-  if (dbUser.balance < amount) {
-    throw new Error(`Insufficient account balance. Available balance: $${dbUser.balance.toFixed(2)}.`);
+  if (uIdx === -1) {
+    throw new Error('User account not found.');
   }
 
-  const dailyReturn = (amount * plan.dailyYield) / 100;
+  const targetUser = users[uIdx];
+  if (targetUser.balance < amount) {
+    throw new Error(`Insufficient funds. Your balance is $${targetUser.balance.toFixed(2)}.`);
+  }
 
-  dbUser.balance -= amount;
-  dbUser.totalInvestments += amount;
-  users[uIdx] = dbUser;
+  targetUser.balance -= amount;
+  targetUser.totalInvestments += amount;
+  users[uIdx] = targetUser;
   saveUsers(users);
 
-  saveCurrentSession(dbUser);
-
+  const dailyReturn = (amount * (plan.dailyYield / 100));
   const newInv: UserInvestment = {
-    id: `INV-${Math.floor(10000 + Math.random() * 90000)}`,
-    userId: dbUser.userId,
+    id: `INV-${Math.floor(100000 + Math.random() * 900000)}`,
+    userId: user.userId,
     planId: plan.id,
     planName: plan.name,
     asset: plan.asset,
@@ -1058,64 +989,56 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
   const txs = getTransactionsLocal();
   txs.unshift({
     id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-    userId: dbUser.userId,
+    userId: user.userId,
     type: 'YIELD',
     amount: amount,
     currency: plan.asset,
     status: 'COMPLETED',
     timestamp: new Date().toISOString(),
-    note: `Subscribed to ${plan.name}`
+    processedAt: new Date().toISOString(),
+    note: `Subscribed to ${plan.name} ($${amount.toFixed(2)})`
   });
   saveTransactions(txs);
 
-  return { user: dbUser, inv: newInv };
+  saveCurrentSession(targetUser);
+  return { user: targetUser, investment: newInv };
 }
 
-export function withdrawReferralEarnings(
-  user: User,
-  withdrawalAmount: number,
-  destinationAddress: string
-): { user: User; tx: Transaction } {
-  const refConfig = getReferralConfig();
-  const minThreshold = refConfig.withdrawalThreshold || 50.0;
+export function withdrawReferralEarnings(user: User, amount: number): User {
+  if (amount <= 0) {
+    throw new Error('Amount must be greater than zero.');
+  }
 
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === user.userId);
-  if (uIdx === -1) throw new Error('User account not found.');
-
-  const dbUser = users[uIdx];
-
-  if (dbUser.referralEarnings < minThreshold) {
-    throw new Error(`Minimum referral earnings withdrawal threshold is $${minThreshold.toFixed(2)}. Your current referral earnings: $${dbUser.referralEarnings.toFixed(2)}.`);
+  if (uIdx === -1) {
+    throw new Error('User account not found.');
   }
 
-  if (withdrawalAmount > dbUser.referralEarnings) {
-    throw new Error(`Requested amount ($${withdrawalAmount.toFixed(2)}) exceeds available referral earnings ($${dbUser.referralEarnings.toFixed(2)}).`);
+  const targetUser = users[uIdx];
+  if (targetUser.referralEarnings < amount) {
+    throw new Error(`Insufficient referral earnings. Available: $${targetUser.referralEarnings.toFixed(2)}.`);
   }
 
-  if (!destinationAddress.trim()) {
-    throw new Error('A valid destination crypto address is required.');
-  }
-
-  dbUser.referralEarnings -= withdrawalAmount;
-  users[uIdx] = dbUser;
+  targetUser.referralEarnings -= amount;
+  targetUser.balance += amount;
+  users[uIdx] = targetUser;
   saveUsers(users);
-  saveCurrentSession(dbUser);
 
   const txs = getTransactionsLocal();
-  const newTx: Transaction = {
+  txs.unshift({
     id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-    userId: dbUser.userId,
-    type: 'WITHDRAWAL',
-    amount: withdrawalAmount,
+    userId: user.userId,
+    type: 'REFERRAL_REWARD',
+    amount: amount,
     currency: 'USD',
-    status: 'PENDING',
+    status: 'COMPLETED',
     timestamp: new Date().toISOString(),
-    note: `Referral Withdrawal to ${destinationAddress.slice(0, 6)}...${destinationAddress.slice(-4)}`
-  };
-
-  txs.unshift(newTx);
+    processedAt: new Date().toISOString(),
+    note: `Transferred $${amount.toFixed(2)} Referral Earnings to Main Balance`
+  });
   saveTransactions(txs);
 
-  return { user: dbUser, tx: newTx };
+  saveCurrentSession(targetUser);
+  return targetUser;
 }

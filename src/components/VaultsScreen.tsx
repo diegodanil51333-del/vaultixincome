@@ -33,7 +33,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
     try {
       const res = subscribeInvestmentPlan(user, selectedPlan.id, depositAmount);
       onUserUpdated(res.user);
-      setSuccess(`Successfully subscribed $${depositAmount} to ${selectedPlan.name}! Daily return: +$${res.inv.dailyReturn.toFixed(2)}/day.`);
+      setSuccess(`Successfully subscribed $${depositAmount} to ${selectedPlan.name}! Daily return: +$${res.investment.dailyReturn.toFixed(2)}/day.`);
     } catch (err: any) {
       setError(err.message || 'Subscription failed.');
     }

@@ -79,9 +79,9 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     }
 
     try {
-      const res = withdrawReferralEarnings(user, withdrawAmt, destinationAddress.trim());
-      onUserUpdated(res.user);
-      setWSuccess(`Referral withdrawal request for $${withdrawAmt.toFixed(2)} submitted successfully! Network fee ($15.00) processed. Transaction ID: ${res.tx.id}`);
+      const updatedUser = withdrawReferralEarnings(user, withdrawAmt);
+      onUserUpdated(updatedUser);
+      setWSuccess(`Referral earnings of $${withdrawAmt.toFixed(2)} transferred to main balance successfully!`);
       setWithdrawStep('IDLE');
       setDestinationAddress('');
       setFeePaidConfirmed(false);

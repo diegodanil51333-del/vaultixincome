@@ -51,7 +51,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     try {
       const tx = submitDeposit(user, amt, selectedWallet.symbol);
       setDepositAmount('');
-      setDepSuccess(`Deposit request #${tx.id} of ${amt} ${selectedWallet.symbol} submitted! Status: PENDING admin verification.`);
+      setDepSuccess(`Deposit request #${tx.id} of ${amt} ${selectedWallet.symbol} submitted! Status: PENDING`);
       onUserUpdated({ ...user });
     } catch (err: any) {
       setDepError(err.message || 'Failed to submit deposit.');
