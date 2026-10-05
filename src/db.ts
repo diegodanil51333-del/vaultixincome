@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v9';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v9';
-const INVESTMENTS_KEY = 'vaultix_investments_v9';
-const INVITATIONS_KEY = 'vaultix_invitations_v9';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v9';
-const WALLETS_KEY = 'vaultix_wallets_v9';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v9';
-const PLANS_KEY = 'vaultix_plans_v9';
-const SESSION_KEY = 'vaultix_session_v9';
+const USERS_KEY = 'vaultix_users_v10';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v10';
+const INVESTMENTS_KEY = 'vaultix_investments_v10';
+const INVITATIONS_KEY = 'vaultix_invitations_v10';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v10';
+const WALLETS_KEY = 'vaultix_wallets_v10';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v10';
+const PLANS_KEY = 'vaultix_plans_v10';
+const SESSION_KEY = 'vaultix_session_v10';
 
 // Global Cloud Sync Endpoint to ensure Cross-Device Multi-Tenant Data Sync (iPhone, Android, Desktop, Vercel)
 const CLOUD_SYNC_URL = 'https://api.jsonbin.io/v3/b/66f82902e41b4d34e439d56f';
@@ -517,17 +517,43 @@ export function savePlans(plans: InvestmentPlan[]) {
   syncToCloud();
 }
 
-// CRITICAL: Session persistence across refreshes & tab reloads
+// --- TRIPLE-BACKED INDESTRUCTIBLE SESSION PERSISTENCE ENGINE ---
+// Uses localStorage + sessionStorage + Cookie backup so refresh never clears user login
+
+function getCookie(name: string): string | null {
+  try {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return decodeURIComponent(parts.pop()?.split(';').shift() || '');
+  } catch {
+    // Ignore cookie read failures
+  }
+  return null;
+}
+
 export function getCurrentSession(): User | null {
-  const d = localStorage.getItem(SESSION_KEY);
-  if (!d) return null;
+  let sessionRaw: string | null = null;
 
   try {
-    const sessionUser: User = JSON.parse(d);
-    if (!sessionUser || !sessionUser.userId) return null;
+    sessionRaw = localStorage.getItem(SESSION_KEY);
+    if (!sessionRaw) {
+      sessionRaw = sessionStorage.getItem(SESSION_KEY);
+    }
+    if (!sessionRaw) {
+      sessionRaw = getCookie(SESSION_KEY);
+    }
+  } catch {
+    sessionRaw = getCookie(SESSION_KEY);
+  }
+
+  if (!sessionRaw) return null;
+
+  try {
+    const sessionUser: User = JSON.parse(sessionRaw);
+    if (!sessionUser || (!sessionUser.userId && !sessionUser.email)) return null;
 
     const users = getUsersLocal();
-    const freshUser = users.find((u) => u.userId === sessionUser.userId);
+    const freshUser = users.find((u) => u.userId === sessionUser.userId || u.email.toLowerCase() === sessionUser.email.toLowerCase());
     return freshUser || sessionUser;
   } catch {
     return null;
@@ -536,9 +562,22 @@ export function getCurrentSession(): User | null {
 
 export function saveCurrentSession(user: User | null) {
   if (user) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    const jsonStr = JSON.stringify(user);
+    try {
+      localStorage.setItem(SESSION_KEY, jsonStr);
+      sessionStorage.setItem(SESSION_KEY, jsonStr);
+      document.cookie = `${SESSION_KEY}=${encodeURIComponent(jsonStr)}; path=/; max-age=31536000; SameSite=Lax`;
+    } catch {
+      // Fallback
+    }
   } else {
-    localStorage.removeItem(SESSION_KEY);
+    try {
+      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
+      document.cookie = `${SESSION_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    } catch {
+      // Fallback
+    }
   }
 }
 
@@ -602,12 +641,11 @@ export function processMaturedInvestments() {
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
       localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
 
-      const currSessionStr = localStorage.getItem(SESSION_KEY);
-      if (currSessionStr) {
-        const sessionUser = JSON.parse(currSessionStr);
-        const updatedUser = users.find((u) => u.userId === sessionUser.userId);
+      const currSessionUser = getCurrentSession();
+      if (currSessionUser) {
+        const updatedUser = users.find((u) => u.userId === currSessionUser.userId);
         if (updatedUser) {
-          localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+          saveCurrentSession(updatedUser);
         }
       }
       syncToCloud();

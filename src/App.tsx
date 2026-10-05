@@ -12,7 +12,7 @@ import { WalletScreen } from './components/WalletScreen';
 import { SupportScreen } from './components/SupportScreen';
 import { AdminScreen } from './components/AdminScreen';
 
-const TAB_STORAGE_KEY = 'vaultix_current_tab_v5';
+const TAB_STORAGE_KEY = 'vaultix_current_tab_v10';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -21,14 +21,16 @@ export function App() {
 
   useEffect(() => {
     initializeDatabase();
-    const session = getCurrentSession();
-    if (session) {
+
+    // Synchronous session recovery with triple-key fallback
+    const recoveredSession = getCurrentSession();
+    if (recoveredSession) {
       const allUsers = getUsers();
-      const freshUser = allUsers.find((u) => u.userId === session.userId) || session;
+      const freshUser = allUsers.find((u) => u.userId === recoveredSession.userId || u.email.toLowerCase() === recoveredSession.email.toLowerCase()) || recoveredSession;
       setCurrentUser(freshUser);
 
-      // Restore saved active tab on refresh
-      const savedTab = localStorage.getItem(TAB_STORAGE_KEY) as NavTab | null;
+      // Restore saved active tab on page refresh
+      const savedTab = (localStorage.getItem(TAB_STORAGE_KEY) || sessionStorage.getItem(TAB_STORAGE_KEY)) as NavTab | null;
       if (savedTab) {
         if (savedTab === 'admin' && freshUser.role !== 'ADMIN') {
           setCurrentTabState('dashboard');
@@ -39,16 +41,22 @@ export function App() {
         setCurrentTabState('admin');
       }
     }
+
     setIsInitialized(true);
   }, []);
 
   const setCurrentTab = (tab: NavTab) => {
     setCurrentTabState(tab);
-    localStorage.setItem(TAB_STORAGE_KEY, tab);
+    try {
+      localStorage.setItem(TAB_STORAGE_KEY, tab);
+      sessionStorage.setItem(TAB_STORAGE_KEY, tab);
+    } catch {
+      // Fallback
+    }
   };
 
   const handleLoginSuccess = (user: User) => {
-    const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
+    const freshUser = getUsers().find((u) => u.userId === user.userId || u.email.toLowerCase() === user.email.toLowerCase()) || user;
     setCurrentUser(freshUser);
     saveCurrentSession(freshUser);
 
@@ -66,7 +74,12 @@ export function App() {
 
   const handleLogout = () => {
     saveCurrentSession(null);
-    localStorage.removeItem(TAB_STORAGE_KEY);
+    try {
+      localStorage.removeItem(TAB_STORAGE_KEY);
+      sessionStorage.removeItem(TAB_STORAGE_KEY);
+    } catch {
+      // Fallback
+    }
     setCurrentUser(null);
     setCurrentTabState('dashboard');
   };
@@ -75,7 +88,7 @@ export function App() {
     return (
       <div className="min-h-screen bg-[#0B0E14] text-[#D4AF37] flex flex-col items-center justify-center p-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#D4AF37] mb-3"></div>
-        <span className="text-xs font-bold tracking-widest uppercase">Initializing Vaultix Income Database...</span>
+        <span className="text-xs font-bold tracking-widest uppercase">Verifying Authenticated Session...</span>
       </div>
     );
   }
