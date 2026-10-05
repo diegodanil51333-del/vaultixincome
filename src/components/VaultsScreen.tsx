@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, InvestmentPlan, UserInvestment } from '../types';
 import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers } from '../db';
-import { TrendingUp, CheckCircle, AlertCircle, DollarSign, ArrowUpRight, ShieldCheck, X } from 'lucide-react';
+import { TrendingUp, CheckCircle, AlertCircle, DollarSign, ArrowUpRight, ShieldCheck, X, Crown, Building2, Layers } from 'lucide-react';
 
 interface VaultsScreenProps {
   user: User;
@@ -9,8 +9,18 @@ interface VaultsScreenProps {
 }
 
 export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated }) => {
-  const activePlans = getPlans().filter((p) => p.isActive);
-  const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan>(activePlans[0] || getPlans()[0]);
+  const [activeTab, setActiveTab] = useState<'CRYPTO_VAULT' | 'VVIP_PLAN' | 'STOCK_PLAN'>('CRYPTO_VAULT');
+  const allPlans = getPlans().filter((p) => p.isActive);
+
+  // Group plans by category
+  const cryptoVaultPlans = allPlans.filter((p) => !p.category || p.category === 'CRYPTO_VAULT');
+  const vvipPlans = allPlans.filter((p) => p.category === 'VVIP_PLAN');
+  const stockPlans = allPlans.filter((p) => p.category === 'STOCK_PLAN');
+
+  const currentCategoryPlans =
+    activeTab === 'VVIP_PLAN' ? vvipPlans : activeTab === 'STOCK_PLAN' ? stockPlans : cryptoVaultPlans;
+
+  const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan>(currentCategoryPlans[0] || allPlans[0]);
   const [depositAmount, setDepositAmount] = useState<number>(selectedPlan.minDeposit);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -25,6 +35,18 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
   const userInvestments = getInvestments().filter((inv) => inv.userId === user.userId);
   const dailyReturn = (depositAmount * selectedPlan.dailyYield) / 100;
 
+  const handleTabChange = (tab: 'CRYPTO_VAULT' | 'VVIP_PLAN' | 'STOCK_PLAN') => {
+    setActiveTab(tab);
+    setError(null);
+    setSuccess(null);
+    const plansForTab =
+      tab === 'VVIP_PLAN' ? vvipPlans : tab === 'STOCK_PLAN' ? stockPlans : cryptoVaultPlans;
+    if (plansForTab.length > 0) {
+      setSelectedPlan(plansForTab[0]);
+      setDepositAmount(plansForTab[0].minDeposit);
+    }
+  };
+
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -33,7 +55,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
     try {
       const res = subscribeInvestmentPlan(user, selectedPlan.id, depositAmount);
       onUserUpdated(res.user);
-      setSuccess(`Successfully subscribed $${depositAmount} to ${selectedPlan.name}! Daily return: +$${res.investment.dailyReturn.toFixed(2)}/day.`);
+      setSuccess(`Successfully subscribed $${depositAmount.toLocaleString()} to ${selectedPlan.name}! Estimated yield: +$${res.investment.dailyReturn.toFixed(2)}/day.`);
     } catch (err: any) {
       setError(err.message || 'Subscription failed.');
     }
@@ -67,7 +89,6 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
       const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
       onUserUpdated(freshUser);
 
-      // REQUIREMENT 2: EXACT MSG: "Withdrawal request #TX-275898 of $10.00 submitted! Status: PENDING"
       setInvWSuccess(`Withdrawal request #${tx.id} of $${totalAmount.toFixed(2)} submitted! Status: PENDING`);
       setSelectedInvForWithdraw(null);
       setInvWithdrawAddress('');
@@ -81,11 +102,50 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
       <div>
         <h2 className="text-xl font-bold text-white flex items-center space-x-2">
           <TrendingUp className="w-5 h-5 text-[#D4AF37]" />
-          <span>Yield Vault Strategies & Portfolio</span>
+          <span>Yield Vaults, VVIP Plans & Global Stocks</span>
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          Automated compounding digital asset yield strategies with instant withdrawal routing
+          Algorithmic crypto yield vaults, VVIP high-capital plans, and major equity market stock options
         </p>
+      </div>
+
+      {/* Category Navigation Tabs */}
+      <div className="flex border-b border-[#2A3447] space-x-2 overflow-x-auto pb-1">
+        <button
+          onClick={() => handleTabChange('CRYPTO_VAULT')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'CRYPTO_VAULT'
+              ? 'bg-[#1D2432] text-[#D4AF37] border border-[#D4AF37]/50 shadow-md'
+              : 'text-slate-400 hover:text-white hover:bg-[#141923]'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Crypto Yield Vaults ({cryptoVaultPlans.length})</span>
+        </button>
+
+        <button
+          onClick={() => handleTabChange('VVIP_PLAN')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'VVIP_PLAN'
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-md'
+              : 'text-slate-400 hover:text-white hover:bg-[#141923]'
+          }`}
+        >
+          <Crown className="w-4 h-4 text-amber-400" />
+          <span>VVIP Executive Plans ({vvipPlans.length})</span>
+        </button>
+
+        <button
+          onClick={() => handleTabChange('STOCK_PLAN')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'STOCK_PLAN'
+              ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 shadow-md'
+              : 'text-slate-400 hover:text-white hover:bg-[#141923]'
+          }`}
+        >
+          <Building2 className="w-4 h-4 text-indigo-400" />
+          <span>Stock Investments ({stockPlans.length})</span>
+        </button>
       </div>
 
       {error && (
@@ -109,10 +169,13 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
         </div>
       )}
 
-      {/* Vault Plans Grid */}
+      {/* Investment Options Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {activePlans.map((plan) => {
+        {currentCategoryPlans.map((plan) => {
           const isSelected = selectedPlan.id === plan.id;
+          const isVVIP = plan.category === 'VVIP_PLAN';
+          const isStock = plan.category === 'STOCK_PLAN';
+
           return (
             <div
               key={plan.id}
@@ -122,34 +185,66 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
                 setError(null);
                 setSuccess(null);
               }}
-              className={`cursor-pointer bg-[#141923] border rounded-2xl p-5 space-y-3 transition-all ${
-                isSelected ? 'border-[#D4AF37] shadow-lg shadow-[#D4AF37]/5 bg-[#1D2432]' : 'border-[#2A3447] hover:border-slate-500'
+              className={`cursor-pointer bg-[#141923] border rounded-2xl p-5 space-y-3 transition-all relative ${
+                isSelected
+                  ? isVVIP
+                    ? 'border-amber-400 shadow-xl shadow-amber-500/10 bg-[#1D2432]'
+                    : isStock
+                    ? 'border-indigo-400 shadow-xl shadow-indigo-500/10 bg-[#1D2432]'
+                    : 'border-[#D4AF37] shadow-lg shadow-[#D4AF37]/5 bg-[#1D2432]'
+                  : 'border-[#2A3447] hover:border-slate-500'
               }`}
             >
+              {isVVIP && (
+                <span className="absolute top-3 right-3 text-[10px] font-black text-black bg-amber-400 px-2 py-0.5 rounded-full flex items-center space-x-1">
+                  <Crown className="w-3 h-3" />
+                  <span>VVIP EXECUTIVE</span>
+                </span>
+              )}
+
+              {isStock && plan.ticker && (
+                <span className="absolute top-3 right-3 text-[10px] font-bold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-full">
+                  {plan.ticker}
+                </span>
+              )}
+
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-white text-sm">{plan.name}</h3>
-                  <span className="text-xs text-[#D4AF37] font-semibold">{plan.asset} Base Asset</span>
+                  <h3 className="font-bold text-white text-sm pr-16">{plan.name}</h3>
+                  <span className="text-xs text-[#D4AF37] font-semibold block mt-0.5">
+                    {isStock ? `${plan.ticker} • ${plan.sector}` : `${plan.asset} Base Asset`}
+                  </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-lg font-extrabold text-[#10B981]">+{plan.dailyYield}%</span>
-                  <span className="block text-[10px] text-slate-400">Daily Return</span>
-                </div>
+                {!isVVIP && (
+                  <div className="text-right">
+                    <span className="text-lg font-extrabold text-[#10B981]">+{plan.dailyYield}%</span>
+                    <span className="block text-[10px] text-slate-400">Daily Yield</span>
+                  </div>
+                )}
               </div>
+
+              {isVVIP && (
+                <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl text-center">
+                  <span className="text-xs text-slate-300 block">Target Fixed Return (1 Month)</span>
+                  <span className="text-2xl font-black text-amber-400">
+                    {plan.id === 'plan_vvip_1' ? '+20% RETURN' : '+40% RETURN'}
+                  </span>
+                </div>
+              )}
 
               <p className="text-xs text-slate-300 leading-relaxed">{plan.description}</p>
 
               <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#2A3447] text-[11px]">
                 <div>
                   <span className="text-slate-400 block">Min Deposit</span>
-                  <span className="font-bold text-white">${plan.minDeposit}</span>
+                  <span className="font-bold text-white">${plan.minDeposit.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block">Max Limit</span>
                   <span className="font-bold text-white">${plan.maxDeposit.toLocaleString()}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Lock Period</span>
+                  <span className="text-slate-400 block">Lock Term</span>
                   <span className="font-bold text-[#06B6D4]">{plan.lockDays} Days</span>
                 </div>
               </div>
@@ -196,12 +291,12 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
             type="submit"
             className="w-full bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer"
           >
-            CONFIRM VAULT SUBSCRIPTION
+            CONFIRM PLAN SUBSCRIPTION (${depositAmount.toLocaleString()})
           </button>
         </form>
       </div>
 
-      {/* REQUIREMENT 1: USER ACTIVE & MATURED INVESTMENTS WITH WITHDRAW OPTION */}
+      {/* User Investments Table */}
       <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center space-x-2">
           <ShieldCheck className="w-4 h-4 text-[#10B981]" />
@@ -209,7 +304,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
         </h3>
 
         {userInvestments.length === 0 ? (
-          <div className="text-center text-slate-400 text-xs py-6">No investment subscriptions recorded yet.</div>
+          <div className="text-center text-slate-400 text-xs py-6">No active or completed investment subscriptions recorded yet.</div>
         ) : (
           <div className="space-y-3">
             {userInvestments.map((inv) => {
@@ -263,7 +358,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
 
                     {inv.status === 'WITHDRAWAL_PENDING' && (
                       <span className="text-xs text-amber-400 font-bold bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-xl">
-                        Withdrawal Request Pending Admin
+                        Withdrawal Request Pending
                       </span>
                     )}
 

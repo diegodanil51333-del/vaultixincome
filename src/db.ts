@@ -66,6 +66,7 @@ export const DEFAULT_REFERRAL_CONFIG: ReferralConfig = {
 };
 
 export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
+  // --- EXISTING VAULT PLANS (UNCHANGED) ---
   {
     id: 'plan_starter',
     name: 'Micro Starter Vault',
@@ -76,7 +77,8 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
     lockDays: 7,
     riskLevel: 'Conservative',
     description: 'Beginner-friendly yield strategy starting at $10 with daily liquidity.',
-    isActive: true
+    isActive: true,
+    category: 'CRYPTO_VAULT'
   },
   {
     id: 'plan_btc_yield',
@@ -88,7 +90,8 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
     lockDays: 14,
     riskLevel: 'Conservative',
     description: 'Algorithmic yield generation backed by BTC spot and options arbitrage.',
-    isActive: true
+    isActive: true,
+    category: 'CRYPTO_VAULT'
   },
   {
     id: 'plan_eth_staking',
@@ -100,7 +103,8 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
     lockDays: 30,
     riskLevel: 'Moderate',
     description: 'Liquid staking rewards combined with automated MEV capture strategies.',
-    isActive: true
+    isActive: true,
+    category: 'CRYPTO_VAULT'
   },
   {
     id: 'plan_xrp_growth',
@@ -112,7 +116,8 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
     lockDays: 14,
     riskLevel: 'Moderate',
     description: 'Automated XRPL liquidity pool routing and arbitrage vault.',
-    isActive: true
+    isActive: true,
+    category: 'CRYPTO_VAULT'
   },
   {
     id: 'plan_multi_asset',
@@ -124,7 +129,338 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
     lockDays: 60,
     riskLevel: 'Moderate',
     description: 'Institutional-grade yield compounding across multi-token liquidity protocols.',
-    isActive: true
+    isActive: true,
+    category: 'CRYPTO_VAULT'
+  },
+
+  // --- VVIP INVESTMENT PLANS ---
+  {
+    id: 'plan_vvip_1',
+    name: 'VVIP Executive Tier 1 Plan',
+    asset: 'USD/USDT',
+    dailyYield: 0.67, // ~20% total return over 30 days
+    minDeposit: 10000,
+    maxDeposit: 50000,
+    lockDays: 30,
+    riskLevel: 'VVIP Executive',
+    description: 'Exclusive VVIP investment strategy with fixed 20% return over a 1-month term ($10,000–$50,000).',
+    isActive: true,
+    category: 'VVIP_PLAN'
+  },
+  {
+    id: 'plan_vvip_2',
+    name: 'VVIP Institutional Tier 2 Plan',
+    asset: 'USD/USDT',
+    dailyYield: 1.33, // ~40% total return over 30 days
+    minDeposit: 50000,
+    maxDeposit: 1000000,
+    lockDays: 30,
+    riskLevel: 'VVIP Executive',
+    description: 'High-capital institutional VVIP vault offering fixed 40% return over a 1-month term ($50,000–$1,000,000).',
+    isActive: true,
+    category: 'VVIP_PLAN'
+  },
+
+  // --- STOCK INVESTMENT SECTION (20 MAJOR COMPANIES) ---
+  {
+    id: 'stock_nvda',
+    name: 'NVIDIA Corporation',
+    asset: 'USD',
+    dailyYield: 1.5,
+    minDeposit: 500,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'AI chips, data centers, and accelerated computing infrastructure.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'NVDA',
+    sector: 'Semiconductors & AI'
+  },
+  {
+    id: 'stock_aapl',
+    name: 'Apple Inc.',
+    asset: 'USD',
+    dailyYield: 0.8,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'iPhone, computers, wearables, and ecosystem services.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'AAPL',
+    sector: 'Consumer Electronics'
+  },
+  {
+    id: 'stock_msft',
+    name: 'Microsoft Corporation',
+    asset: 'USD',
+    dailyYield: 0.9,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Software, Azure cloud computing, productivity, and enterprise AI.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'MSFT',
+    sector: 'Software & Cloud'
+  },
+  {
+    id: 'stock_amzn',
+    name: 'Amazon.com Inc.',
+    asset: 'USD',
+    dailyYield: 1.1,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'E-commerce marketplace, AWS cloud infrastructure, and AI logistics.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'AMZN',
+    sector: 'E-Commerce & Cloud'
+  },
+  {
+    id: 'stock_googl',
+    name: 'Alphabet Inc. (Google)',
+    asset: 'USD',
+    dailyYield: 1.0,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Search engine, YouTube digital advertising, Google Cloud, and AI innovation.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'GOOGL',
+    sector: 'Digital Advertising & AI'
+  },
+  {
+    id: 'stock_meta',
+    name: 'Meta Platforms Inc.',
+    asset: 'USD',
+    dailyYield: 1.2,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'Facebook, Instagram, WhatsApp social networking, and AI advertising algorithms.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'META',
+    sector: 'Social Media & AI'
+  },
+  {
+    id: 'stock_tsla',
+    name: 'Tesla Inc.',
+    asset: 'USD',
+    dailyYield: 1.6,
+    minDeposit: 300,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'High Yield',
+    description: 'Electric vehicles, solar energy storage, autonomous driving, and robotics.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'TSLA',
+    sector: 'EV & Clean Energy'
+  },
+  {
+    id: 'stock_avgo',
+    name: 'Broadcom Inc.',
+    asset: 'USD',
+    dailyYield: 1.3,
+    minDeposit: 300,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'Semiconductors, networking, and enterprise infrastructure software.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'AVGO',
+    sector: 'Semiconductors'
+  },
+  {
+    id: 'stock_tsm',
+    name: 'Taiwan Semiconductor Manufacturing (TSMC)',
+    asset: 'USD',
+    dailyYield: 1.2,
+    minDeposit: 300,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'World leading semiconductor foundry manufacturing advanced chips for global tech.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'TSM',
+    sector: 'Semiconductor Manufacturing'
+  },
+  {
+    id: 'stock_amd',
+    name: 'Advanced Micro Devices (AMD)',
+    asset: 'USD',
+    dailyYield: 1.4,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'High-performance CPUs, GPUs, gaming hardware, and AI data center accelerators.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'AMD',
+    sector: 'CPUs & AI Hardware'
+  },
+  {
+    id: 'stock_brk',
+    name: 'Berkshire Hathaway Inc.',
+    asset: 'USD',
+    dailyYield: 0.7,
+    minDeposit: 500,
+    maxDeposit: 250000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: "Warren Buffett's premier conglomerate holding company with diversified value assets.",
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'BRK.B',
+    sector: 'Diversified Financials'
+  },
+  {
+    id: 'stock_jpm',
+    name: 'JPMorgan Chase & Co.',
+    asset: 'USD',
+    dailyYield: 0.8,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Global banking, investment banking, asset management, and financial services.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'JPM',
+    sector: 'Banking & Finance'
+  },
+  {
+    id: 'stock_v',
+    name: 'Visa Inc.',
+    asset: 'USD',
+    dailyYield: 0.8,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Worldwide digital payment processing network and fintech infrastructure.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'V',
+    sector: 'Payment Networks'
+  },
+  {
+    id: 'stock_wmt',
+    name: 'Walmart Inc.',
+    asset: 'USD',
+    dailyYield: 0.7,
+    minDeposit: 200,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Global retail chain, e-commerce supply chain, and consumer staples network.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'WMT',
+    sector: 'Consumer Retail'
+  },
+  {
+    id: 'stock_nflx',
+    name: 'Netflix Inc.',
+    asset: 'USD',
+    dailyYield: 1.3,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'Global subscription video streaming service and original media production.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'NFLX',
+    sector: 'Digital Entertainment'
+  },
+  {
+    id: 'stock_ko',
+    name: 'The Coca-Cola Company',
+    asset: 'USD',
+    dailyYield: 0.6,
+    minDeposit: 100,
+    maxDeposit: 50000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Global beverage manufacturer and brand distribution network.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'KO',
+    sector: 'Consumer Staples'
+  },
+  {
+    id: 'stock_mcd',
+    name: "McDonald's Corporation",
+    asset: 'USD',
+    dailyYield: 0.7,
+    minDeposit: 200,
+    maxDeposit: 50000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Global quick-service restaurant franchise chain and real estate portfolio.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'MCD',
+    sector: 'Restaurants & Real Estate'
+  },
+  {
+    id: 'stock_nke',
+    name: 'NIKE Inc.',
+    asset: 'USD',
+    dailyYield: 0.9,
+    minDeposit: 150,
+    maxDeposit: 50000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'Athletic footwear, apparel, sports equipment, and global direct-to-consumer sales.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'NKE',
+    sector: 'Sportswear & Apparel'
+  },
+  {
+    id: 'stock_orcl',
+    name: 'Oracle Corporation',
+    asset: 'USD',
+    dailyYield: 1.1,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Moderate',
+    description: 'Database management, enterprise cloud applications, and AI infrastructure.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'ORCL',
+    sector: 'Enterprise Cloud Technology'
+  },
+  {
+    id: 'stock_xom',
+    name: 'Exxon Mobil Corporation',
+    asset: 'USD',
+    dailyYield: 0.9,
+    minDeposit: 250,
+    maxDeposit: 100000,
+    lockDays: 30,
+    riskLevel: 'Conservative',
+    description: 'Energy exploration, oil refining, petrochemical manufacturing, and power.',
+    isActive: true,
+    category: 'STOCK_PLAN',
+    ticker: 'XOM',
+    sector: 'Energy & Resources'
   }
 ];
 
@@ -506,7 +842,11 @@ export function saveReferralConfig(cfg: ReferralConfig) {
 function getPlansLocal(): InvestmentPlan[] {
   try {
     const d = localStorage.getItem(PLANS_KEY);
-    return d ? JSON.parse(d) : DEFAULT_INVESTMENT_PLANS;
+    const stored: InvestmentPlan[] = d ? JSON.parse(d) : DEFAULT_INVESTMENT_PLANS;
+    const planMap = new Map<string, InvestmentPlan>();
+    DEFAULT_INVESTMENT_PLANS.forEach((p) => planMap.set(p.id, p));
+    stored.forEach((p) => planMap.set(p.id, p));
+    return Array.from(planMap.values());
   } catch {
     return DEFAULT_INVESTMENT_PLANS;
   }

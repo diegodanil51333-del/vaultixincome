@@ -1,6 +1,6 @@
 import React from 'react';
 import { MarketTracker } from './MarketTracker';
-import { ShieldCheck, TrendingUp, Lock, ArrowRight, BookOpen, Layers, Zap, Award, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, TrendingUp, Lock, ArrowRight, BookOpen, Layers, Zap, Award, CheckCircle2, Crown, Building2 } from 'lucide-react';
 
 interface LandingPageProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
@@ -159,6 +159,118 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
           </div>
 
           <MarketTracker />
+        </div>
+      </section>
+
+      {/* VVIP Executive Plans Preview Section */}
+      <section id="vvip" className="py-16 md:py-24 bg-gradient-to-b from-[#0B0E14] via-[#141923] to-[#0B0E14] border-b border-[#2A3447]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center justify-center space-x-1">
+              <Crown className="w-4 h-4" />
+              <span>VVIP Executive Tier</span>
+            </span>
+            <h2 className="text-2xl md:text-3xl font-extrabold text-white">Exclusive High-Capital VVIP Strategies</h2>
+            <p className="text-xs md:text-sm text-slate-400">
+              Institutional yield options with fixed 1-month returns for private wealth clients.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* VVIP Plan 1 */}
+            <div className="bg-[#141923] border border-amber-500/40 p-6 rounded-2xl space-y-4 hover:border-amber-400 transition-all shadow-xl shadow-amber-500/5 relative overflow-hidden">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-white text-lg">VVIP Executive Tier 1 Plan</h3>
+                  <span className="text-xs text-amber-400 font-semibold">1-Month Fixed Lock Term</span>
+                </div>
+                <span className="bg-amber-400 text-black font-black text-xs px-2.5 py-1 rounded-full">20% RETURN</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Designed for high-net-worth portfolio allocations with a capital range of $10,000 to $50,000.
+              </p>
+              <div className="flex justify-between items-center pt-3 border-t border-[#2A3447] text-xs">
+                <div><span className="text-slate-400 block">Capital Range</span><span className="font-bold text-white">$10,000 – $50,000</span></div>
+                <div><span className="text-slate-400 block">Term Duration</span><span className="font-bold text-amber-400">1 Month (30 Days)</span></div>
+              </div>
+              <button onClick={() => onOpenAuth('register')} className="w-full bg-amber-400 hover:bg-amber-300 text-black font-extrabold py-2.5 rounded-xl text-xs transition-all cursor-pointer">
+                INVEST IN VVIP TIER 1
+              </button>
+            </div>
+
+            {/* VVIP Plan 2 */}
+            <div className="bg-[#141923] border border-amber-500/40 p-6 rounded-2xl space-y-4 hover:border-amber-400 transition-all shadow-xl shadow-amber-500/5 relative overflow-hidden">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-white text-lg">VVIP Institutional Tier 2 Plan</h3>
+                  <span className="text-xs text-amber-400 font-semibold">1-Month Fixed Lock Term</span>
+                </div>
+                <span className="bg-amber-400 text-black font-black text-xs px-2.5 py-1 rounded-full">40% RETURN</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Institutional-grade treasury vault with 40% target yield for allocations from $50,000 up to $1,000,000.
+              </p>
+              <div className="flex justify-between items-center pt-3 border-t border-[#2A3447] text-xs">
+                <div><span className="text-slate-400 block">Capital Range</span><span className="font-bold text-white">$50,000 – $1,000,000</span></div>
+                <div><span className="text-slate-400 block">Term Duration</span><span className="font-bold text-amber-400">1 Month (30 Days)</span></div>
+              </div>
+              <button onClick={() => onOpenAuth('register')} className="w-full bg-amber-400 hover:bg-amber-300 text-black font-extrabold py-2.5 rounded-xl text-xs transition-all cursor-pointer">
+                INVEST IN VVIP TIER 2
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Stock Investment Section */}
+      <section id="stocks" className="py-16 md:py-24 bg-[#0B0E14] border-b border-[#2A3447]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center justify-center space-x-1">
+              <Building2 className="w-4 h-4" />
+              <span>Equity Market Portfolio</span>
+            </span>
+            <h2 className="text-2xl md:text-3xl font-extrabold text-white">Major Global Stock Investment Options</h2>
+            <p className="text-xs md:text-sm text-slate-400">
+              Access individual stock investment plans linked to top tech giants, semiconductors, banking, retail, and energy leaders.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {[
+              { ticker: 'NVDA', name: 'NVIDIA', sector: 'AI Chips' },
+              { ticker: 'AAPL', name: 'Apple', sector: 'Consumer Electronics' },
+              { ticker: 'MSFT', name: 'Microsoft', sector: 'Cloud & Software' },
+              { ticker: 'AMZN', name: 'Amazon', sector: 'E-Commerce & AWS' },
+              { ticker: 'GOOGL', name: 'Alphabet', sector: 'Search & AI' },
+              { ticker: 'META', name: 'Meta', sector: 'Social Networks' },
+              { ticker: 'TSLA', name: 'Tesla', sector: 'EV & Clean Energy' },
+              { ticker: 'AVGO', name: 'Broadcom', sector: 'Semiconductors' },
+              { ticker: 'TSM', name: 'TSMC', sector: 'Foundry Manufacturing' },
+              { ticker: 'AMD', name: 'AMD', sector: 'CPUs & GPUs' },
+              { ticker: 'BRK.B', name: 'Berkshire', sector: 'Diversified Assets' },
+              { ticker: 'JPM', name: 'JPMorgan', sector: 'Global Banking' },
+              { ticker: 'V', name: 'Visa', sector: 'Payment Networks' },
+              { ticker: 'WMT', name: 'Walmart', sector: 'Global Retail' },
+              { ticker: 'NFLX', name: 'Netflix', sector: 'Streaming Media' },
+              { ticker: 'KO', name: 'Coca-Cola', sector: 'Beverages' },
+              { ticker: 'MCD', name: "McDonald's", sector: 'Restaurants' },
+              { ticker: 'NKE', name: 'NIKE', sector: 'Sportswear' },
+              { ticker: 'ORCL', name: 'Oracle', sector: 'Database & Cloud' },
+              { ticker: 'XOM', name: 'Exxon Mobil', sector: 'Energy & Oil' }
+            ].map((st) => (
+              <div key={st.ticker} className="bg-[#141923] border border-[#2A3447] p-3.5 rounded-2xl flex flex-col justify-between hover:border-indigo-500/50 transition-all">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-indigo-400 text-xs bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded-md">{st.ticker}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Stock Plan</span>
+                </div>
+                <div>
+                  <span className="font-bold text-white text-xs block">{st.name}</span>
+                  <span className="text-[10px] text-slate-400 block">{st.sector}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

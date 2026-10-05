@@ -41,9 +41,12 @@ export interface InvestmentPlan {
   minDeposit: number;
   maxDeposit: number;
   lockDays: number;
-  riskLevel: 'Conservative' | 'Moderate' | 'High Yield';
+  riskLevel: 'Conservative' | 'Moderate' | 'High Yield' | 'VVIP Executive';
   description: string;
   isActive: boolean;
+  category?: 'CRYPTO_VAULT' | 'VVIP_PLAN' | 'STOCK_PLAN';
+  ticker?: string;
+  sector?: string;
 }
 
 export interface UserInvestment {
