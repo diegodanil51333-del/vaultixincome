@@ -1,14 +1,14 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 
-const USERS_KEY = 'vaultix_users_v8';
-const TRANSACTIONS_KEY = 'vaultix_transactions_v8';
-const INVESTMENTS_KEY = 'vaultix_investments_v8';
-const INVITATIONS_KEY = 'vaultix_invitations_v8';
-const AUDIT_LOGS_KEY = 'vaultix_audit_v8';
-const WALLETS_KEY = 'vaultix_wallets_v8';
-const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v8';
-const PLANS_KEY = 'vaultix_plans_v8';
-const SESSION_KEY = 'vaultix_session_v8';
+const USERS_KEY = 'vaultix_users_v9';
+const TRANSACTIONS_KEY = 'vaultix_transactions_v9';
+const INVESTMENTS_KEY = 'vaultix_investments_v9';
+const INVITATIONS_KEY = 'vaultix_invitations_v9';
+const AUDIT_LOGS_KEY = 'vaultix_audit_v9';
+const WALLETS_KEY = 'vaultix_wallets_v9';
+const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v9';
+const PLANS_KEY = 'vaultix_plans_v9';
+const SESSION_KEY = 'vaultix_session_v9';
 
 // Global Cloud Sync Endpoint to ensure Cross-Device Multi-Tenant Data Sync (iPhone, Android, Desktop, Vercel)
 const CLOUD_SYNC_URL = 'https://api.jsonbin.io/v3/b/66f82902e41b4d34e439d56f';
@@ -128,7 +128,7 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
   }
 ];
 
-// Mandatory Pre-Configured Test Accounts (As required by Prompt)
+// Mandatory Pre-Configured Accounts (Including Admin with password Mmadu51366414@)
 export const SEED_ACCOUNTS: User[] = [
   {
     userId: 'USR-000001',
@@ -136,7 +136,7 @@ export const SEED_ACCOUNTS: User[] = [
     username: 'vaultix_admin',
     fullName: 'Vaultix Team Administrator',
     email: 'vaultixincometeam@outlook.com',
-    passwordHash: 'VaultixAdmin2026!Secured',
+    passwordHash: 'Mmadu51366414@',
     role: 'ADMIN',
     accountStatus: 'ACTIVE',
     balance: 0.0,
@@ -145,6 +145,23 @@ export const SEED_ACCOUNTS: User[] = [
     totalInvestments: 0.0,
     totalProfitLoss: 0.0,
     referralCode: 'VXREF-ADMIN',
+    createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-000000',
+    accountId: 'VX-100000',
+    username: 'diegodaniel4401',
+    fullName: 'Diego Daniel (Administrator)',
+    email: 'diegodaniel4401@gmail.com',
+    passwordHash: 'Mmadu51366414@',
+    role: 'ADMIN',
+    accountStatus: 'ACTIVE',
+    balance: 0.0,
+    referralEarnings: 0.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-DIEGO',
     createdAt: new Date().toISOString()
   },
   {
@@ -275,6 +292,7 @@ export function initializeDatabase() {
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
   syncFromCloud();
+  syncToCloud(); // Immediately push seed accounts to cloud bin
 }
 
 // --- CLOUD SYNC ENGINE FOR WORLDWIDE CROSS-DEVICE REALTIME CONSISTENCY ---
@@ -287,9 +305,10 @@ async function syncFromCloud() {
       const json = await res.json();
       const record = json.record;
       if (record && Array.isArray(record.users)) {
-        // Merge cloud users with local users
+        // Merge cloud users with local users and SEED_ACCOUNTS
         const localUsers = getUsersLocal();
         const mergedMap = new Map<string, User>();
+        SEED_ACCOUNTS.forEach((u) => mergedMap.set(u.userId, u));
         localUsers.forEach((u) => mergedMap.set(u.userId, u));
         record.users.forEach((u: User) => mergedMap.set(u.userId, u));
         const mergedUsers = Array.from(mergedMap.values());
@@ -357,7 +376,11 @@ async function syncToCloud() {
 function getUsersLocal(): User[] {
   try {
     const d = localStorage.getItem(USERS_KEY);
-    return d ? JSON.parse(d) : SEED_ACCOUNTS;
+    const parsed: User[] = d ? JSON.parse(d) : SEED_ACCOUNTS;
+    const map = new Map<string, User>();
+    SEED_ACCOUNTS.forEach((s) => map.set(s.userId, s));
+    parsed.forEach((p) => map.set(p.userId, p));
+    return Array.from(map.values());
   } catch {
     return SEED_ACCOUNTS;
   }
@@ -370,7 +393,11 @@ export function getUsers(): User[] {
 }
 
 export function saveUsers(users: User[]) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  const map = new Map<string, User>();
+  SEED_ACCOUNTS.forEach((s) => map.set(s.userId, s));
+  users.forEach((u) => map.set(u.userId, u));
+  const merged = Array.from(map.values());
+  localStorage.setItem(USERS_KEY, JSON.stringify(merged));
   syncToCloud();
 }
 
