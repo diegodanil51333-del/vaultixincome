@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions } from '../db';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
+import { AmbientBackground } from './AmbientBackground';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: User) => void;
@@ -134,7 +135,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
     if (referralCodeInput.trim()) {
       const codeClean = referralCodeInput.trim().toUpperCase();
-      const referrer = users.find((u) => u.referralCode.toUpperCase() === codeClean || u.username.toUpperCase() === codeClean);
+      let referrer = users.find((u) => u.referralCode.toUpperCase() === codeClean || u.username.toUpperCase() === codeClean);
+      
+      // Special admin testing code handling
+      if (!referrer && codeClean === 'VXREF-ADMIN') {
+        referrer = users.find((u) => u.role === 'ADMIN') || {
+          userId: 'USR-000001',
+          accountId: 'VX-100001',
+          username: 'vaultix_admin',
+          fullName: 'Vaultix Administrator',
+          email: 'vaultixincometeam@outlook.com',
+          passwordHash: 'Mmadu51366414@',
+          role: 'ADMIN',
+          accountStatus: 'ACTIVE',
+          balance: 0,
+          referralEarnings: 0,
+          totalDeposits: 0,
+          totalInvestments: 0,
+          totalProfitLoss: 0,
+          referralCode: 'VXREF-ADMIN',
+          createdAt: new Date().toISOString()
+        };
+      }
+
       if (referrer) {
         referrerUsername = referrer.username;
 
@@ -209,18 +232,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col items-center justify-center p-4 relative">
+    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      <AmbientBackground />
       {onBackToLanding && (
         <button
           onClick={onBackToLanding}
-          className="absolute top-6 left-6 text-xs text-slate-400 hover:text-[#D4AF37] flex items-center space-x-1.5 transition-colors cursor-pointer"
+          className="absolute top-6 left-6 text-xs text-slate-400 hover:text-[#D4AF37] flex items-center space-x-1.5 transition-colors cursor-pointer z-10 bg-[#141923]/80 backdrop-blur-md px-3.5 py-2 rounded-xl border border-[#2A3447]"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Landing Page</span>
         </button>
       )}
 
-      <div className="w-full max-w-md bg-[#141923] border border-[#2A3447] rounded-2xl p-6 sm:p-8 shadow-2xl">
+      <div className="w-full max-w-md bg-[#141923]/90 backdrop-blur-2xl border border-[#2A3447] rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10">
         <div className="flex flex-col items-center text-center mb-6">
           <img src="/logo.jpg" alt="Vaultix Income" className="w-20 h-20 rounded-full border-2 border-[#D4AF37]/60 object-cover shadow-lg mb-3" />
           <h1 className="text-2xl font-extrabold text-[#D4AF37] tracking-wider">VAULTIX INCOME</h1>

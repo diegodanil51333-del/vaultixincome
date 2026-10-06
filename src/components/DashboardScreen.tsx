@@ -1,9 +1,10 @@
-import React from 'react';
-import { User } from '../types';
+import React, { useState } from 'react';
+import { User, Transaction } from '../types';
 import { getInvestments, getTransactions } from '../db';
 import { Wallet, TrendingUp, ShieldCheck, ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
 import { HowItWorks } from './HowItWorks';
 import { MarketTracker } from './MarketTracker';
+import { TransactionReceiptModal } from './TransactionReceiptModal';
 
 interface DashboardScreenProps {
   user: User;
@@ -11,6 +12,7 @@ interface DashboardScreenProps {
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNavigateToTab }) => {
+  const [selectedTxForReceipt, setSelectedTxForReceipt] = useState<Transaction | null>(null);
   const allInvestments = getInvestments().filter((inv) => inv.userId === user.userId);
   const activeInvestments = allInvestments.filter((inv) => inv.status === 'ACTIVE');
   const completedInvestments = allInvestments.filter((inv) => inv.status === 'COMPLETED');
@@ -156,11 +158,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           </div>
         ) : (
           <div className="bg-[#141923] border border-[#2A3447] rounded-xl divide-y divide-[#2A3447] overflow-hidden">
-            {allTransactions.slice(0, 5).map((tx) => (
-              <div key={tx.id} className="p-3.5 flex items-center justify-between text-xs hover:bg-[#1D2432]/50 transition-colors">
+            {allTransactions.slice(0, 10).map((tx) => (
+              <div
+                key={tx.id}
+                onClick={() => setSelectedTxForReceipt(tx)}
+                className="p-3.5 flex items-center justify-between text-xs hover:bg-[#1D2432] transition-colors cursor-pointer"
+              >
                 <div className="flex items-center space-x-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'ADMIN_CREDIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                    {tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'ADMIN_CREDIT' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'FIRST_DEPOSIT_BONUS' || tx.type === 'ADMIN_CREDIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                    {tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'FIRST_DEPOSIT_BONUS' || tx.type === 'ADMIN_CREDIT' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                   </div>
                   <div>
                     <div className="font-bold text-white">{tx.note || tx.type}</div>
@@ -168,9 +174,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <div className={`font-bold ${tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'ADMIN_CREDIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'ADMIN_CREDIT' ? '+' : '-'}${tx.amount.toFixed(2)}
+                <div className="text-right shrink-0">
+                  <div className={`font-bold ${tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'FIRST_DEPOSIT_BONUS' || tx.type === 'ADMIN_CREDIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {tx.type === 'DEPOSIT' || tx.type === 'REFERRAL_REWARD' || tx.type === 'FIRST_DEPOSIT_BONUS' || tx.type === 'ADMIN_CREDIT' ? '+' : '-'}${tx.amount.toFixed(2)}
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     tx.status === 'APPROVED' || tx.status === 'COMPLETED'
@@ -187,6 +193,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
           </div>
         )}
       </div>
+
+      {/* Transaction Receipt Slip Modal */}
+      <TransactionReceiptModal
+        transaction={selectedTxForReceipt}
+        onClose={() => setSelectedTxForReceipt(null)}
+      />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { User, Transaction } from '../types';
 import { getWallets, submitDeposit, submitWithdrawalRequest, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelDepositTransaction } from '../db';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Copy, Check, AlertCircle, CheckCircle, Mail, QrCode } from 'lucide-react';
 import { OFFICIAL_SUPPORT_EMAIL } from './SupportScreen';
+import { TransactionReceiptModal } from './TransactionReceiptModal';
 
 interface WalletScreenProps {
   user: User;
@@ -10,6 +11,7 @@ interface WalletScreenProps {
 }
 
 export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated }) => {
+  const [selectedTxForReceipt, setSelectedTxForReceipt] = useState<Transaction | null>(null);
   const wallets = getWallets().filter((w) => w.isActive);
   const [selectedSymbol, setSelectedSymbol] = useState<string>(wallets[0]?.symbol || 'USDT');
   const [copiedAddress, setCopiedAddress] = useState(false);
@@ -351,19 +353,23 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
         ) : (
           <div className="divide-y divide-[#2A3447] overflow-hidden rounded-xl border border-[#2A3447]">
             {userTransactions.map((tx) => (
-              <div key={tx.id} className="p-3.5 flex items-center justify-between text-xs hover:bg-[#1D2432]/50 transition-colors">
+              <div
+                key={tx.id}
+                onClick={() => setSelectedTxForReceipt(tx)}
+                className="p-3.5 flex items-center justify-between text-xs hover:bg-[#1D2432] transition-colors cursor-pointer"
+              >
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span className="font-mono text-slate-300">{tx.id}</span>
+                    <span className="font-mono text-[#D4AF37] font-bold">{tx.id}</span>
                     <span className="font-bold text-white">{tx.note || tx.type}</span>
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">{new Date(tx.timestamp).toLocaleString()}</div>
                 </div>
 
-                <div className="text-right flex items-center space-x-3">
+                <div className="text-right flex items-center space-x-3 shrink-0">
                   <div>
                     <div className={`font-bold ${tx.type === 'WITHDRAWAL' ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      {tx.type === 'WITHDRAWAL' ? '-' : '+'}${tx.amount.toFixed(2)} {tx.currency}
+                      {tx.type === 'WITHDRAWAL' ? '-' : '+'}${tx.amount.toFixed(2)} {tx.currency || 'USD'}
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       tx.status === 'APPROVED' || tx.status === 'COMPLETED'
@@ -372,14 +378,17 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
                         ? 'bg-amber-500/20 text-amber-400'
                         : 'bg-rose-500/20 text-rose-400'
                     }`}>
-                      {tx.status}
+                      {tx.status === 'PENDING' ? 'Processing' : tx.status === 'APPROVED' || tx.status === 'COMPLETED' ? 'Completed' : 'Cancelled'}
                     </span>
                   </div>
 
                   {tx.type === 'DEPOSIT' && tx.status === 'PENDING' && (
                     <button
-                      onClick={() => handleCancelUserDeposit(tx.id)}
-                      className="text-[10px] text-rose-400 hover:underline border border-rose-500/30 px-2 py-1 rounded-lg"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancelUserDeposit(tx.id);
+                      }}
+                      className="text-[10px] text-rose-400 hover:underline border border-rose-500/30 px-2 py-1 rounded-lg cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -390,6 +399,12 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
           </div>
         )}
       </div>
+
+      {/* Transaction Receipt Slip Modal */}
+      <TransactionReceiptModal
+        transaction={selectedTxForReceipt}
+        onClose={() => setSelectedTxForReceipt(null)}
+      />
     </div>
   );
 };

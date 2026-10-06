@@ -1050,7 +1050,6 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
   targetTx.processedAt = new Date().toISOString();
   targetTx.note = `Deposit ${targetTx.id} approved! Credited $${targetTx.amount.toFixed(2)}.`;
   txs[txIdx] = targetTx;
-  saveTransactions(txs);
 
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
@@ -1060,10 +1059,40 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
 
   const targetUser = users[uIdx];
   const oldBalance = targetUser.balance;
+
+  // Credit deposit principal
   targetUser.balance += targetTx.amount;
   targetUser.totalDeposits += targetTx.amount;
+
+  // Check First Deposit Bonus Eligibility (Granted exactly ONCE)
+  if (!targetUser.hasReceivedFirstDepositBonus) {
+    const isReferred = Boolean(targetUser.referredByUsername && targetUser.referredByUsername.trim().length > 0);
+    const bonusPercent = isReferred ? 3 : 2;
+    const bonusAmount = (targetTx.amount * bonusPercent) / 100;
+
+    if (bonusAmount > 0) {
+      targetUser.balance += bonusAmount;
+      targetUser.hasReceivedFirstDepositBonus = true;
+
+      // Record separate bonus transaction for audit
+      const bonusTx: Transaction = {
+        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+        userId: targetUser.userId,
+        type: 'FIRST_DEPOSIT_BONUS',
+        amount: bonusAmount,
+        currency: 'USD',
+        status: 'COMPLETED',
+        timestamp: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        note: `First Deposit Bonus (${bonusPercent}% of $${targetTx.amount.toFixed(2)})`
+      };
+      txs.unshift(bonusTx);
+    }
+  }
+
   users[uIdx] = targetUser;
   saveUsers(users);
+  saveTransactions(txs);
 
   const currentSession = getCurrentSession();
   if (currentSession?.userId === targetUser.userId) {

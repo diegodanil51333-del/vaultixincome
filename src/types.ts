@@ -14,6 +14,7 @@ export interface User {
   totalProfitLoss: number;
   referralCode: string;
   referredByUsername?: string;
+  hasReceivedFirstDepositBonus?: boolean;
   createdAt: string;
 }
 
@@ -62,7 +63,7 @@ export interface UserInvestment {
   status: 'ACTIVE' | 'COMPLETED' | 'WITHDRAWAL_PENDING' | 'WITHDRAWN';
 }
 
-export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'YIELD' | 'REFERRAL_REWARD' | 'ADMIN_CREDIT' | 'ADMIN_DEBIT';
+export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'YIELD' | 'REFERRAL_REWARD' | 'FIRST_DEPOSIT_BONUS' | 'ADMIN_CREDIT' | 'ADMIN_DEBIT';
 export type TransactionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED';
 
 export interface Transaction {

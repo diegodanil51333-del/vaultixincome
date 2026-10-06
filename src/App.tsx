@@ -12,6 +12,8 @@ import { InviteScreen } from './components/InviteScreen';
 import { WalletScreen } from './components/WalletScreen';
 import { SupportScreen } from './components/SupportScreen';
 import { AdminScreen } from './components/AdminScreen';
+import { AmbientBackground } from './components/AmbientBackground';
+import { Footer } from './components/Footer';
 
 const TAB_STORAGE_KEY = 'vaultix_current_tab_v10';
 
@@ -119,10 +121,11 @@ export function App() {
 
   // Authenticated Users: Full Wealth Management Application
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col font-sans">
+    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col font-sans relative">
+      <AmbientBackground />
       <Navbar user={currentUser} onLogout={handleLogout} />
 
-      <div className="flex-1 flex flex-col md:flex-row">
+      <div className="flex-1 flex flex-col md:flex-row relative z-10">
         <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} user={currentUser} />
 
         <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
@@ -145,6 +148,8 @@ export function App() {
           )}
         </main>
       </div>
+
+      <Footer onOpenSupport={() => setCurrentTab('support')} />
     </div>
   );
 }

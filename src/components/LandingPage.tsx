@@ -1,6 +1,8 @@
 import React from 'react';
 import { MarketTracker } from './MarketTracker';
 import { ShieldCheck, TrendingUp, Lock, ArrowRight, BookOpen, Layers, Zap, Award, CheckCircle2, Crown, Building2 } from 'lucide-react';
+import { AmbientBackground } from './AmbientBackground';
+import { Footer } from './Footer';
 
 interface LandingPageProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
@@ -8,7 +10,8 @@ interface LandingPageProps {
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-white font-sans flex flex-col selection:bg-[#D4AF37] selection:text-black">
+    <div className="min-h-screen bg-[#0B0E14] text-white font-sans flex flex-col selection:bg-[#D4AF37] selection:text-black relative">
+      <AmbientBackground />
       {/* Navigation Header */}
       <header className="sticky top-0 z-40 bg-[#0B0E14]/90 backdrop-blur-md border-b border-[#2A3447]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -405,21 +408,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 bg-[#0B0E14] text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-          <div>
-            <span className="font-bold text-[#D4AF37]">VAULTIX INCOME</span> — Digital Asset Management & Yield Platform
-            <p className="text-[10px] text-slate-600 mt-1">© 2026 Vaultix Income. All rights reserved.</p>
-          </div>
-          <div className="flex items-center space-x-6 text-[11px]">
-            <a href="#assets" className="hover:text-slate-300">Assets</a>
-            <a href="#features" className="hover:text-slate-300">Features</a>
-            <a href="#market" className="hover:text-slate-300">Market Data</a>
-            <a href="#strategies" className="hover:text-slate-300">Educational Guide</a>
-            <button onClick={() => onOpenAuth('login')} className="hover:text-slate-300 cursor-pointer">Login</button>
-          </div>
-        </div>
-      </footer>
+      <Footer onOpenSupport={() => onOpenAuth('login')} />
     </div>
   );
 };
