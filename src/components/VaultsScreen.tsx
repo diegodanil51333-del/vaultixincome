@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, InvestmentPlan, UserInvestment } from '../types';
-import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers } from '../db';
+import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers, getAccruedProfitForInvestment } from '../db';
 import { TrendingUp, CheckCircle, AlertCircle, DollarSign, ArrowUpRight, ShieldCheck, X, Crown, Building2, Layers } from 'lucide-react';
 
 interface VaultsScreenProps {
@@ -308,8 +308,9 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
         ) : (
           <div className="space-y-3">
             {userInvestments.map((inv) => {
-              const profit = inv.dailyReturn * inv.durationDays;
-              const totalPayout = inv.amount + profit;
+              const accruedProfit = getAccruedProfitForInvestment(inv);
+              const maxProfit = inv.dailyReturn * inv.durationDays;
+              const totalPayout = inv.amount + accruedProfit;
               const isEligibleForWithdrawal = inv.status === 'COMPLETED' || inv.status === 'ACTIVE';
 
               return (
@@ -336,7 +337,9 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
 
                     <div className="text-right">
                       <div className="text-xs font-bold text-white">${inv.amount.toFixed(2)} Principal</div>
-                      <div className="text-xs font-extrabold text-[#10B981]">+${profit.toFixed(2)} Earned Profit</div>
+                      <div className="text-xs font-extrabold text-[#10B981]">
+                        +${accruedProfit.toFixed(2)} Accrued Profit ({((accruedProfit / inv.amount) * 100).toFixed(2)}%)
+                      </div>
                     </div>
                   </div>
 

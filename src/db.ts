@@ -1340,6 +1340,24 @@ export function cancelOwnPendingDeposit(user: User, transactionId: string): Tran
   return targetTx;
 }
 
+export function calculateWithdrawalFee(amount: number): { fee: number; netAmount: number } {
+  const fee = Math.ceil(amount / 10) * 0.50;
+  const netAmount = Math.max(0, amount - fee);
+  return { fee, netAmount };
+}
+
+export function getAccruedProfitForInvestment(inv: UserInvestment): number {
+  if (inv.status === 'COMPLETED' || inv.status === 'WITHDRAWN' || inv.status === 'WITHDRAWAL_PENDING') {
+    return inv.dailyReturn * inv.durationDays;
+  }
+  const nowMs = Date.now();
+  const startMs = new Date(inv.startDate).getTime();
+  const durationMs = inv.durationDays * 86400000;
+  const elapsedMs = Math.min(durationMs, Math.max(0, nowMs - startMs));
+  const elapsedDays = elapsedMs / 86400000;
+  return inv.dailyReturn * elapsedDays;
+}
+
 export function submitWithdrawalRequest(
   user: User,
   amount: number,
@@ -1363,8 +1381,10 @@ export function submitWithdrawalRequest(
     throw new Error(`Insufficient funds. Available balance: $${targetUser.balance.toFixed(2)}.`);
   }
 
+  const { fee, netAmount } = calculateWithdrawalFee(amount);
+
   if (!investmentId) {
-    // Deduct withdrawal amount upfront for normal withdrawals
+    // Deduct requested withdrawal amount upfront from active balance
     targetUser.balance -= amount;
     users[uIdx] = targetUser;
     saveUsers(users);
@@ -1376,10 +1396,62 @@ export function submitWithdrawalRequest(
     userId: user.userId,
     type: 'WITHDRAWAL',
     amount: amount,
+    feeAmount: fee,
+    netAmount: netAmount,
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Withdrawal request #${txId} of $${amount.toFixed(2)} submitted! Status: PENDING`
+    note: `Withdrawal request #${txId} of $${amount.toFixed(2)} (Net: $${netAmount.toFixed(2)} after $${fee.toFixed(2)} fee) submitted! Status: PENDING`
+  };
+
+  const txs = getTransactionsLocal();
+  txs.unshift(newTx);
+  saveTransactions(txs);
+
+  saveCurrentSession(targetUser);
+  return newTx;
+}
+
+export function submitBonusWithdrawalRequest(
+  user: User,
+  amount: number,
+  destinationAddress: string
+): Transaction {
+  if (amount < 50.0) {
+    throw new Error('Minimum bonus balance withdrawal threshold is $50.00.');
+  }
+
+  const users = getUsersLocal();
+  const uIdx = users.findIndex((u) => u.userId === user.userId);
+  if (uIdx === -1) {
+    throw new Error('User account not found.');
+  }
+
+  const targetUser = users[uIdx];
+  const bonusBal = targetUser.bonusBalance || targetUser.referralEarnings || 0;
+
+  if (bonusBal < amount) {
+    throw new Error(`Insufficient Bonus Balance. Available: $${bonusBal.toFixed(2)}.`);
+  }
+
+  // Deduct bonus balance upfront and hold in PENDING
+  targetUser.bonusBalance = bonusBal - amount;
+  targetUser.referralEarnings = Math.max(0, (targetUser.referralEarnings || 0) - amount);
+  users[uIdx] = targetUser;
+  saveUsers(users);
+
+  const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+  const newTx: Transaction = {
+    id: txId,
+    userId: user.userId,
+    type: 'BONUS_WITHDRAWAL',
+    amount: amount,
+    feeAmount: 15.0, // $15 Network Fee
+    netAmount: amount,
+    currency: 'USD',
+    status: 'PENDING',
+    timestamp: new Date().toISOString(),
+    note: `Bonus Wallet Withdrawal Request #${txId} of $${amount.toFixed(2)} ($15 Network Fee Confirmed) -> ${destinationAddress}`
   };
 
   const txs = getTransactionsLocal();
@@ -1458,7 +1530,14 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
   let targetUser = users[uIdx];
 
   if (uIdx !== -1) {
-    targetUser.balance += targetTx.amount;
+    if (targetTx.type === 'BONUS_WITHDRAWAL') {
+      targetUser.bonusBalance = (targetUser.bonusBalance || 0) + targetTx.amount;
+      targetUser.referralEarnings = (targetUser.referralEarnings || 0) + targetTx.amount;
+      targetTx.note = `Bonus Withdrawal ${targetTx.id} cancelled. $${targetTx.amount.toFixed(2)} refunded to Bonus Wallet.`;
+    } else {
+      targetUser.balance += targetTx.amount;
+      targetTx.note = `Withdrawal ${targetTx.id} cancelled. $${targetTx.amount.toFixed(2)} refunded to Active Balance.`;
+    }
     users[uIdx] = targetUser;
     saveUsers(users);
 

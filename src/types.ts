@@ -9,6 +9,7 @@ export interface User {
   accountStatus: 'ACTIVE' | 'SUSPENDED';
   balance: number;
   referralEarnings: number;
+  bonusBalance?: number;
   totalDeposits: number;
   totalInvestments: number;
   totalProfitLoss: number;
@@ -64,7 +65,7 @@ export interface UserInvestment {
   status: 'ACTIVE' | 'COMPLETED' | 'WITHDRAWAL_PENDING' | 'WITHDRAWN';
 }
 
-export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'YIELD' | 'REFERRAL_REWARD' | 'FIRST_DEPOSIT_BONUS' | 'ADMIN_CREDIT' | 'ADMIN_DEBIT';
+export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'YIELD' | 'REFERRAL_REWARD' | 'FIRST_DEPOSIT_BONUS' | 'BONUS_WITHDRAWAL' | 'ADMIN_CREDIT' | 'ADMIN_DEBIT';
 export type TransactionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED';
 
 export interface Transaction {
@@ -72,6 +73,8 @@ export interface Transaction {
   userId: string;
   type: TransactionType;
   amount: number;
+  feeAmount?: number;
+  netAmount?: number;
   currency: string;
   status: TransactionStatus;
   timestamp: string;

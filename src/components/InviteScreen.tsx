@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Invitation } from '../types';
-import { getUsers, getInvitations, saveInvitations, saveUsers, saveCurrentSession, getReferralConfig, withdrawReferralEarnings } from '../db';
+import { getUsers, getInvitations, saveInvitations, saveUsers, saveCurrentSession, getReferralConfig, withdrawReferralEarnings, submitBonusWithdrawalRequest } from '../db';
 import { Users, Copy, Check, Share2, Award, UserPlus, AlertCircle, CheckCircle, ArrowUpRight, DollarSign, ShieldCheck } from 'lucide-react';
 
 interface InviteScreenProps {
@@ -48,12 +48,14 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     setWError(null);
     setWSuccess(null);
 
-    if (user.referralEarnings < minThreshold) {
-      setWError(`Referral earnings balance ($${user.referralEarnings.toFixed(2)}) is below the $${minThreshold.toFixed(2)} withdrawal threshold.`);
+    const bonusBal = user.bonusBalance || user.referralEarnings || 0;
+
+    if (bonusBal < minThreshold) {
+      setWError(`Bonus Wallet balance ($${bonusBal.toFixed(2)}) is below the $${minThreshold.toFixed(2)} withdrawal threshold.`);
       return;
     }
 
-    setWithdrawAmt(user.referralEarnings);
+    setWithdrawAmt(bonusBal);
     setWithdrawStep('FEE_PROMPT');
   };
 
@@ -79,14 +81,15 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     }
 
     try {
-      const updatedUser = withdrawReferralEarnings(user, withdrawAmt);
-      onUserUpdated(updatedUser);
-      setWSuccess(`Referral earnings of $${withdrawAmt.toFixed(2)} transferred to main balance successfully!`);
+      const tx = submitBonusWithdrawalRequest(user, withdrawAmt, destinationAddress.trim());
+      const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
+      onUserUpdated(freshUser);
+      setWSuccess(`Bonus Wallet Withdrawal request #${tx.id} of $${withdrawAmt.toFixed(2)} submitted! Status: PENDING ($15 Network Fee Confirmed)`);
       setWithdrawStep('IDLE');
       setDestinationAddress('');
       setFeePaidConfirmed(false);
     } catch (err: any) {
-      setWError(err.message || 'Referral withdrawal failed.');
+      setWError(err.message || 'Bonus withdrawal failed.');
     }
   };
 

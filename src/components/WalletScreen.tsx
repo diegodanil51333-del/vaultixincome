@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Transaction } from '../types';
-import { getWallets, submitDeposit, submitWithdrawalRequest, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelOwnPendingDeposit } from '../db';
-import { Wallet, ArrowDownLeft, ArrowUpRight, Copy, Check, AlertCircle, CheckCircle, Mail, QrCode } from 'lucide-react';
+import { getWallets, submitDeposit, submitWithdrawalRequest, submitBonusWithdrawalRequest, calculateWithdrawalFee, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelOwnPendingDeposit } from '../db';
+import { Wallet, ArrowDownLeft, ArrowUpRight, Copy, Check, AlertCircle, CheckCircle, Mail, QrCode, Gift, ShieldCheck } from 'lucide-react';
 import { OFFICIAL_SUPPORT_EMAIL } from './SupportScreen';
 import { TransactionReceiptModal } from './TransactionReceiptModal';
 
@@ -302,7 +302,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
           <div>
             <div className="flex justify-between text-xs text-slate-300 mb-1">
               <span>Withdrawal Amount ($ USD)</span>
-              <span>Available Balance: ${user.balance.toFixed(2)}</span>
+              <span>Available Active Balance: ${user.balance.toFixed(2)}</span>
             </div>
             <input
               type="number"
@@ -313,6 +313,24 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
               required
             />
           </div>
+
+          {/* Fee Calculation Breakdown ($0.50 per $10) */}
+          {Number(withdrawAmount) > 0 && (
+            <div className="bg-[#1D2432] border border-[#2A3447] p-3.5 rounded-xl text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-300">
+                <span>Requested Amount:</span>
+                <span className="font-bold text-white">${Number(withdrawAmount).toFixed(2)} USD</span>
+              </div>
+              <div className="flex justify-between text-rose-400">
+                <span>Withdrawal Fee ($0.50 per $10):</span>
+                <span className="font-bold">-${calculateWithdrawalFee(Number(withdrawAmount)).fee.toFixed(2)} USD</span>
+              </div>
+              <div className="flex justify-between text-emerald-400 pt-1 border-t border-[#2A3447] font-bold">
+                <span>Net Amount Received:</span>
+                <span className="text-sm">${calculateWithdrawalFee(Number(withdrawAmount)).netAmount.toFixed(2)} USD</span>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1">Personal Destination Crypto Wallet Address</label>
@@ -328,11 +346,48 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
 
           <button
             type="submit"
-            className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md"
+            className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md cursor-pointer"
           >
             SUBMIT WITHDRAWAL REQUEST
           </button>
         </form>
+      </div>
+
+      {/* REQUIREMENT 4: BONUS WALLET & BONUS WITHDRAWAL SECTION */}
+      <div className="bg-[#141923] border border-[#D4AF37]/40 rounded-2xl p-6 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+            <Gift className="w-5 h-5 text-[#D4AF37]" />
+            <span>Bonus Wallet Balance & Referral Rewards</span>
+          </h3>
+          <span className="text-[10px] font-extrabold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2.5 py-1 rounded-full">
+            Locked from Investments
+          </span>
+        </div>
+
+        <div className="bg-[#1D2432] border border-[#2A3447] p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div>
+            <span className="text-slate-400 block">Bonus Wallet Balance</span>
+            <span className="text-xl font-black text-[#D4AF37]">
+              ${(user.bonusBalance || user.referralEarnings || 0).toFixed(2)} USD
+            </span>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Referral and invitation bonuses ($10 referrer, $5 friend) are stored here. Minimum $50 required to withdraw.
+            </p>
+          </div>
+
+          <div className="shrink-0 text-right">
+            {(user.bonusBalance || user.referralEarnings || 0) >= 50.0 ? (
+              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl block">
+                Eligible for Withdrawal ($50 Threshold Reached)
+              </span>
+            ) : (
+              <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl block">
+                Requires $${(50.0 - (user.bonusBalance || user.referralEarnings || 0)).toFixed(2)} More
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* User Transaction History */}

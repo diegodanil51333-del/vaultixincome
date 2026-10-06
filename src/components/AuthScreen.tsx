@@ -142,7 +142,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
     let referrerUsername: string | undefined = undefined;
     let referrerDisplayName: string | undefined = undefined;
-    let initialUserBalance = 0.0;
+    let initialBonusBalance = 0.0;
     const txs = getTransactions();
 
     if (referralCodeInput.trim()) {
@@ -179,8 +179,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         referrerUsername = referrer.username;
         referrerDisplayName = referrer.fullName || referrer.username;
 
-        // Referrer receives $10.00 referral bonus
-        referrer.referralEarnings += 10.0;
+        // Referrer receives $10.00 referral bonus in Bonus Balance
+        referrer.bonusBalance = (referrer.bonusBalance || 0) + 10.0;
+        referrer.referralEarnings = (referrer.referralEarnings || 0) + 10.0;
 
         txs.unshift({
           id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -190,11 +191,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           currency: 'USD',
           status: 'COMPLETED',
           timestamp: new Date().toISOString(),
-          note: `Referral Bonus for inviting @${username.trim()}`
+          note: `Referral Bonus ($10.00 locked) for inviting @${username.trim()}`
         });
 
-        // Newly registered user receives $5.00 referral bonus
-        initialUserBalance = 5.0;
+        // Newly registered user receives $5.00 referral bonus in Bonus Balance
+        initialBonusBalance = 5.0;
       } else {
         setError('Invalid referral code provided. Registration cancelled.');
         return;
@@ -210,8 +211,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       passwordHash: password,
       role: 'USER',
       accountStatus: 'ACTIVE',
-      balance: initialUserBalance, // $5.00 if referred, $0.00 if direct signup
-      referralEarnings: 0.0,
+      balance: 0.0,
+      referralEarnings: initialBonusBalance,
+      bonusBalance: initialBonusBalance, // $5.00 locked bonus balance
       totalDeposits: 0.0,
       totalInvestments: 0.0,
       totalProfitLoss: 0.0,
@@ -221,16 +223,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       createdAt: new Date().toISOString()
     };
 
-    if (initialUserBalance > 0) {
+    if (initialBonusBalance > 0) {
       txs.unshift({
         id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
         userId: newUser.userId,
         type: 'REFERRAL_REWARD',
-        amount: initialUserBalance,
+        amount: initialBonusBalance,
         currency: 'USD',
         status: 'COMPLETED',
         timestamp: new Date().toISOString(),
-        note: `Referral Signup Bonus ($5.00)`
+        note: `Referral Signup Bonus ($5.00 locked in Bonus Wallet)`
       });
     }
 
@@ -239,8 +241,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     saveTransactions(txs);
 
     setMessage(
-      initialUserBalance > 0
-        ? 'Registration successful! $5.00 Referral Signup Bonus applied to your account.'
+      initialBonusBalance > 0
+        ? 'Registration successful! $5.00 Referral Signup Bonus credited to your Bonus Wallet.'
         : 'Registration successful! Welcome to Vaultix Income.'
     );
 
