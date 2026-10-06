@@ -615,30 +615,73 @@ async function syncFromCloud() {
       if (record && Array.isArray(record.users)) {
         const localUsers = getUsersLocal();
         const mergedMap = new Map<string, User>();
+        
+        // 1. Seed accounts
         SEED_ACCOUNTS.forEach((u) => mergedMap.set(u.userId, u));
-        localUsers.forEach((u) => mergedMap.set(u.userId, u));
+        
+        // 2. Cloud users
         record.users.forEach((u: User) => {
           if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
             u.role = 'USER';
+            u.referralCode = 'VXREF-DIEGO';
           }
           mergedMap.set(u.userId, u);
         });
+
+        // 3. Local users (Local edits/new registrations MUST NOT be lost)
+        localUsers.forEach((u) => {
+          if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
+            u.role = 'USER';
+            u.referralCode = 'VXREF-DIEGO';
+          }
+          const existing = mergedMap.get(u.userId);
+          if (!existing) {
+            mergedMap.set(u.userId, u);
+          } else {
+            // Keep highest balance and deposit activity
+            mergedMap.set(u.userId, {
+              ...existing,
+              ...u,
+              balance: Math.max(existing.balance || 0, u.balance || 0),
+              referralEarnings: Math.max(existing.referralEarnings || 0, u.referralEarnings || 0),
+              totalDeposits: Math.max(existing.totalDeposits || 0, u.totalDeposits || 0)
+            });
+          }
+        });
+
         const mergedUsers = Array.from(mergedMap.values());
         localStorage.setItem(USERS_KEY, JSON.stringify(mergedUsers));
 
         if (Array.isArray(record.transactions)) {
           const localTxs = getTransactionsLocal();
           const txMap = new Map<string, Transaction>();
-          localTxs.forEach((t) => txMap.set(t.id, t));
+          
           record.transactions.forEach((t: Transaction) => txMap.set(t.id, t));
+          
+          localTxs.forEach((lt) => {
+            const existing = txMap.get(lt.id);
+            if (!existing) {
+              txMap.set(lt.id, lt);
+            } else {
+              // Terminal statuses (APPROVED, REJECTED, CANCELLED, COMPLETED) ALWAYS override PENDING
+              if (existing.status === 'PENDING' && lt.status !== 'PENDING') {
+                txMap.set(lt.id, lt);
+              } else if (existing.status !== 'PENDING' && lt.status === 'PENDING') {
+                // Keep terminal status
+              } else {
+                txMap.set(lt.id, lt);
+              }
+            }
+          });
+
           localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(Array.from(txMap.values())));
         }
 
         if (Array.isArray(record.investments)) {
           const localInvs = getInvestmentsLocal();
           const invMap = new Map<string, UserInvestment>();
-          localInvs.forEach((i) => invMap.set(i.id, i));
           record.investments.forEach((i: UserInvestment) => invMap.set(i.id, i));
+          localInvs.forEach((i: UserInvestment) => invMap.set(i.id, i));
           localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(Array.from(invMap.values())));
         }
 
