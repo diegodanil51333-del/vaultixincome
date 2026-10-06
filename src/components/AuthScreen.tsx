@@ -130,6 +130,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     }
 
     let referrerUsername: string | undefined = undefined;
+    let referrerDisplayName: string | undefined = undefined;
     let initialUserBalance = 0.0;
     const txs = getTransactions();
 
@@ -137,6 +138,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       const codeClean = referralCodeInput.trim().toUpperCase();
       let referrer = users.find((u) => u.referralCode.toUpperCase() === codeClean || u.username.toUpperCase() === codeClean);
       
+      // Fallback for VXREF-DIEGO or DIEGO
+      if (!referrer && (codeClean === 'VXREF-DIEGO' || codeClean === 'DIEGO')) {
+        referrer = users.find((u) => u.username.toLowerCase() === 'diegodaniel4401' || u.email.toLowerCase() === 'diegodaniel4401@gmail.com');
+      }
+
       // Special admin testing code handling
       if (!referrer && codeClean === 'VXREF-ADMIN') {
         referrer = users.find((u) => u.role === 'ADMIN') || {
@@ -160,6 +166,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
       if (referrer) {
         referrerUsername = referrer.username;
+        referrerDisplayName = referrer.fullName || referrer.username;
 
         // Referrer receives $10.00 referral bonus
         referrer.referralEarnings += 10.0;
@@ -199,6 +206,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       totalProfitLoss: 0.0,
       referralCode: `VXREF-${Math.floor(1000 + Math.random() * 9000)}`,
       referredByUsername: referrerUsername,
+      referredByDisplayName: referrerDisplayName,
       createdAt: new Date().toISOString()
     };
 

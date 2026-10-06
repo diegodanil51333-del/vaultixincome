@@ -480,7 +480,7 @@ const SEED_ACCOUNTS: User[] = [
     totalDeposits: 0.0,
     totalInvestments: 0.0,
     totalProfitLoss: 0.0,
-    referralCode: 'VXREF-4401',
+    referralCode: 'VXREF-DIEGO',
     createdAt: new Date().toISOString()
   },
   {
