@@ -1,4 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
+import { db, doc, setDoc, collection, onSnapshot } from './firebase';
 
 const USERS_KEY = 'vaultix_users_v13';
 const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
@@ -588,6 +589,115 @@ const SEED_ACCOUNTS: User[] = [
   }
 ];
 
+async function syncUsersToFirestore(users: User[]) {
+  try {
+    for (const u of users) {
+      if (u.userId) {
+        await setDoc(doc(db, 'users', u.userId), u, { merge: true });
+      }
+    }
+  } catch {
+    // Non-blocking fallback
+  }
+}
+
+async function syncTxsToFirestore(txs: Transaction[]) {
+  try {
+    for (const t of txs) {
+      if (t.id) {
+        await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
+      }
+    }
+  } catch {
+    // Non-blocking fallback
+  }
+}
+
+let firestoreListenersInitialized = false;
+
+export function initFirestoreListeners() {
+  if (firestoreListenersInitialized || typeof window === 'undefined') return;
+  firestoreListenersInitialized = true;
+
+  try {
+    // Listen to Firestore Users collection in real time
+    onSnapshot(collection(db, 'users'), (snapshot) => {
+      if (snapshot && !snapshot.empty) {
+        const firestoreUsers: User[] = [];
+        snapshot.forEach((docSnap) => {
+          firestoreUsers.push(docSnap.data() as User);
+        });
+
+        if (firestoreUsers.length > 0) {
+          const localUsers = getUsersLocal();
+          const userMap = new Map<string, User>();
+
+          SEED_ACCOUNTS.forEach((s) => userMap.set(s.userId, s));
+          localUsers.forEach((l) => userMap.set(l.userId, l));
+          firestoreUsers.forEach((f) => {
+            if (f.email?.toLowerCase() === 'diegodaniel4401@gmail.com' || f.username?.toLowerCase() === 'diegodaniel4401') {
+              f.role = 'USER';
+              f.referralCode = 'VXREF-DIEGO';
+            }
+            const existing = userMap.get(f.userId);
+            if (!existing) {
+              userMap.set(f.userId, f);
+            } else {
+              userMap.set(f.userId, {
+                ...existing,
+                ...f,
+                balance: Math.max(existing.balance || 0, f.balance || 0),
+                referralEarnings: Math.max(existing.referralEarnings || 0, f.referralEarnings || 0),
+                totalDeposits: Math.max(existing.totalDeposits || 0, f.totalDeposits || 0)
+              });
+            }
+          });
+
+          const merged = Array.from(userMap.values());
+          localStorage.setItem(USERS_KEY, JSON.stringify(merged));
+          emitDataUpdateEvents('users');
+        }
+      }
+    }, () => {});
+
+    // Listen to Firestore Transactions collection in real time
+    onSnapshot(collection(db, 'transactions'), (snapshot) => {
+      if (snapshot && !snapshot.empty) {
+        const firestoreTxs: Transaction[] = [];
+        snapshot.forEach((docSnap) => {
+          firestoreTxs.push(docSnap.data() as Transaction);
+        });
+
+        if (firestoreTxs.length > 0) {
+          const localTxs = getTransactionsLocal();
+          const txMap = new Map<string, Transaction>();
+
+          localTxs.forEach((l) => txMap.set(l.id, l));
+          firestoreTxs.forEach((f) => {
+            const existing = txMap.get(f.id);
+            if (!existing) {
+              txMap.set(f.id, f);
+            } else {
+              if (existing.status === 'PENDING' && f.status !== 'PENDING') {
+                txMap.set(f.id, f);
+              } else if (existing.status !== 'PENDING' && f.status === 'PENDING') {
+                // Keep terminal status
+              } else {
+                txMap.set(f.id, f);
+              }
+            }
+          });
+
+          localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(Array.from(txMap.values())));
+          emitDataUpdateEvents('txs');
+        }
+      }
+    }, () => {});
+  } catch {
+    // Non-blocking fallback
+  }
+}
+
 export function initializeDatabase() {
   if (!localStorage.getItem(USERS_KEY)) {
     localStorage.setItem(USERS_KEY, JSON.stringify(SEED_ACCOUNTS));
@@ -599,6 +709,7 @@ export function initializeDatabase() {
     localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(DEFAULT_REFERRAL_CONFIG));
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
+  initFirestoreListeners();
   syncFromCloud();
   syncToCloud();
 }
@@ -774,12 +885,14 @@ export function saveUsers(users: User[]) {
   users.forEach((u) => {
     if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
       u.role = 'USER';
+      u.referralCode = 'VXREF-DIEGO';
     }
     map.set(u.userId, u);
   });
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
   syncToCloud();
+  syncUsersToFirestore(merged);
   emitDataUpdateEvents('users');
 }
 
@@ -799,6 +912,7 @@ export function getTransactions(): Transaction[] {
 export function saveTransactions(txs: Transaction[]) {
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
   syncToCloud();
+  syncTxsToFirestore(txs);
   emitDataUpdateEvents('txs');
 }
 
