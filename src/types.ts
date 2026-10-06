@@ -62,6 +62,7 @@ export interface UserInvestment {
   dailyReturn: number;
   startDate: string;
   durationDays: number;
+  lastCreditedDaysCount?: number;
   status: 'ACTIVE' | 'COMPLETED' | 'WITHDRAWAL_PENDING' | 'WITHDRAWN';
 }
 

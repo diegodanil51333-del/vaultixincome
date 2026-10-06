@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, InvestmentPlan, UserInvestment } from '../types';
-import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers, getAccruedProfitForInvestment } from '../db';
+import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers, getAccruedProfitForInvestment, validateWithdrawal } from '../db';
 import { TrendingUp, CheckCircle, AlertCircle, DollarSign, ArrowUpRight, ShieldCheck, X, Crown, Building2, Layers } from 'lucide-react';
 
 interface VaultsScreenProps {
@@ -74,8 +74,11 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
     }
 
     try {
-      const profit = selectedInvForWithdraw.dailyReturn * selectedInvForWithdraw.durationDays;
-      const totalAmount = selectedInvForWithdraw.amount + profit;
+      // Validate account status and strict maturity lock
+      validateWithdrawal(user, selectedInvForWithdraw);
+
+      const accruedProfit = getAccruedProfitForInvestment(selectedInvForWithdraw);
+      const totalAmount = selectedInvForWithdraw.amount + accruedProfit;
 
       const tx = submitWithdrawalRequest(
         user,
@@ -396,8 +399,8 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
 
             <div className="bg-[#1D2432] border border-[#2A3447] rounded-xl p-4 space-y-2 text-xs">
               <div className="flex justify-between"><span className="text-slate-400">Principal Amount:</span><span className="font-bold text-white">${selectedInvForWithdraw.amount.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">Earned Profit:</span><span className="font-bold text-[#10B981]">+${(selectedInvForWithdraw.dailyReturn * selectedInvForWithdraw.durationDays).toFixed(2)}</span></div>
-              <div className="flex justify-between pt-1 border-t border-[#2A3447]"><span className="text-slate-300 font-bold">Total Payout:</span><span className="font-extrabold text-[#D4AF37]">${(selectedInvForWithdraw.amount + (selectedInvForWithdraw.dailyReturn * selectedInvForWithdraw.durationDays)).toFixed(2)} USD</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Accrued Profit:</span><span className="font-bold text-[#10B981]">+${getAccruedProfitForInvestment(selectedInvForWithdraw).toFixed(2)}</span></div>
+              <div className="flex justify-between pt-1 border-t border-[#2A3447]"><span className="text-slate-300 font-bold">Total Payout Value:</span><span className="font-extrabold text-[#D4AF37]">${(selectedInvForWithdraw.amount + getAccruedProfitForInvestment(selectedInvForWithdraw)).toFixed(2)} USD</span></div>
             </div>
 
             {invWError && (

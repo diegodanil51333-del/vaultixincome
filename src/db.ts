@@ -1085,7 +1085,26 @@ export function saveCurrentSession(user: User | null) {
   }
 }
 
-// --- AUTOMATIC INVESTMENT MATURITY & PROFIT ENGINE ---
+// --- AUTOMATIC INVESTMENT MATURITY, LOCK & ACCRUAL ENGINE ---
+
+export function validateWithdrawal(user: User, investment: UserInvestment): { success: boolean; message?: string } {
+  // Check account suspension status
+  if (user.accountStatus === 'SUSPENDED') {
+    throw new Error('Your account has been suspended. Kindly contact support.');
+  }
+
+  // Check if maturity date has been reached
+  const currentTime = Date.now();
+  const startDateMs = new Date(investment.startDate).getTime();
+  const maturityTime = startDateMs + investment.durationDays * 86400000;
+
+  if (currentTime < maturityTime) {
+    const daysRemaining = Math.ceil((maturityTime - currentTime) / 86400000);
+    throw new Error(`Your investment is locked until the selected maturity date (${investment.durationDays} Days lock term, ~${daysRemaining} day(s) remaining).`);
+  }
+
+  return { success: true };
+}
 
 export function processMaturedInvestments() {
   try {
