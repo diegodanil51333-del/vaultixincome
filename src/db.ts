@@ -1160,6 +1160,29 @@ export function cancelDepositTransaction(adminUser: User, transactionId: string)
   return rejectDepositTransaction(adminUser, transactionId, 'Cancelled');
 }
 
+export function cancelOwnPendingDeposit(user: User, transactionId: string): Transaction {
+  const txs = getTransactionsLocal();
+  const txIdx = txs.findIndex((t) => t.id === transactionId && t.userId === user.userId);
+
+  if (txIdx === -1) {
+    throw new Error('Transaction request not found.');
+  }
+
+  const targetTx = txs[txIdx];
+
+  if (targetTx.status !== 'PENDING') {
+    throw new Error('This deposit request is no longer pending and cannot be cancelled.');
+  }
+
+  targetTx.status = 'CANCELLED';
+  targetTx.processedAt = new Date().toISOString();
+  targetTx.note = `Deposit request #${transactionId} cancelled by user.`;
+  txs[txIdx] = targetTx;
+  saveTransactions(txs);
+
+  return targetTx;
+}
+
 export function submitWithdrawalRequest(
   user: User,
   amount: number,

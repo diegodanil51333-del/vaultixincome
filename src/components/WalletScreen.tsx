@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Transaction } from '../types';
-import { getWallets, submitDeposit, submitWithdrawalRequest, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelDepositTransaction } from '../db';
+import { getWallets, submitDeposit, submitWithdrawalRequest, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelOwnPendingDeposit } from '../db';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Copy, Check, AlertCircle, CheckCircle, Mail, QrCode } from 'lucide-react';
 import { OFFICIAL_SUPPORT_EMAIL } from './SupportScreen';
 import { TransactionReceiptModal } from './TransactionReceiptModal';
@@ -101,11 +101,11 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
 
   const handleCancelUserDeposit = (txId: string) => {
     try {
-      cancelDepositTransaction(user, txId);
+      cancelOwnPendingDeposit(user, txId);
       const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
       onUserUpdated(freshUser);
     } catch (err: any) {
-      alert(err.message);
+      setDepError(err.message || 'Unable to cancel deposit request.');
     }
   };
 

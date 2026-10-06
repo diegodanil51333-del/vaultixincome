@@ -26,8 +26,12 @@ export const AmbientBackground: React.FC = () => {
 
     window.addEventListener('resize', handleResize);
 
-    // Generate lightweight subtle floating particles
-    const particleCount = Math.min(Math.floor(width / 25), 35);
+    // Crypto Symbols Array
+    const cryptoSymbols = ['₿', 'Ξ', '◎', '✕', '₮', '▲', '$'];
+    const colors = ['#D4AF37', '#6366F1', '#10B981', '#38BDF8', '#8B5CF6'];
+
+    // Particles Array
+    const particleCount = Math.min(Math.floor(width / 25), 30);
     const particles: Array<{
       x: number;
       y: number;
@@ -36,10 +40,11 @@ export const AmbientBackground: React.FC = () => {
       speedY: number;
       alpha: number;
       color: string;
+      symbol?: string;
+      fontSize?: number;
     }> = [];
 
-    const colors = ['#D4AF37', '#6366F1', '#10B981', '#38BDF8', '#8B5CF6'];
-
+    // Subtle background particles
     for (let i = 0; i < particleCount; i++) {
       particles.push({
         x: Math.random() * width,
@@ -47,29 +52,51 @@ export const AmbientBackground: React.FC = () => {
         radius: Math.random() * 1.5 + 0.8,
         speedX: (Math.random() - 0.5) * 0.3,
         speedY: (Math.random() - 0.5) * 0.3,
-        alpha: Math.random() * 0.4 + 0.2,
+        alpha: Math.random() * 0.35 + 0.15,
         color: colors[Math.floor(Math.random() * colors.length)]
+      });
+    }
+
+    // Floating Crypto Symbol Elements
+    const cryptoCount = 12;
+    for (let i = 0; i < cryptoCount; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: 0,
+        speedX: (Math.random() - 0.5) * 0.4,
+        speedY: -Math.random() * 0.4 - 0.1,
+        alpha: Math.random() * 0.25 + 0.1,
+        color: colors[i % colors.length],
+        symbol: cryptoSymbols[i % cryptoSymbols.length],
+        fontSize: Math.floor(Math.random() * 10) + 14
       });
     }
 
     const render = () => {
       ctx.clearRect(0, 0, width, height);
 
-      // Draw subtle particles
       particles.forEach((p) => {
         p.x += p.speedX;
         p.y += p.speedY;
 
-        if (p.x < 0) p.x = width;
-        if (p.x > width) p.x = 0;
-        if (p.y < 0) p.y = height;
-        if (p.y > height) p.y = 0;
+        if (p.x < -20) p.x = width + 20;
+        if (p.x > width + 20) p.x = -20;
+        if (p.y < -20) p.y = height + 20;
+        if (p.y > height + 20) p.y = -20;
 
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
         ctx.globalAlpha = p.alpha;
-        ctx.fill();
+
+        if (p.symbol) {
+          ctx.font = `900 ${p.fontSize}px sans-serif`;
+          ctx.fillStyle = p.color;
+          ctx.fillText(p.symbol, p.x, p.y);
+        } else {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+        }
       });
 
       animationFrameId = requestAnimationFrame(render);
@@ -90,8 +117,8 @@ export const AmbientBackground: React.FC = () => {
       <div className="absolute top-[30%] right-[-10%] w-[45vw] h-[45vw] rounded-full bg-gradient-to-br from-amber-500/10 via-amber-900/10 to-transparent blur-3xl animate-pulse duration-7000" />
       <div className="absolute bottom-[-10%] left-[20%] w-[55vw] h-[55vw] rounded-full bg-gradient-to-tr from-cyan-900/20 via-[#0B0E14] to-transparent blur-3xl" />
 
-      {/* Lightweight Floating Particle Canvas Layer */}
-      <canvas ref={canvasRef} className="absolute inset-0 opacity-60" />
+      {/* Lightweight Floating Particle & Crypto Symbol Canvas Layer */}
+      <canvas ref={canvasRef} className="absolute inset-0 opacity-70" />
 
       {/* Subtle Digital Grid Overlay */}
       <div
