@@ -485,7 +485,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
                     type="text"
                     value={referralCodeInput}
                     onChange={(e) => setReferralCodeInput(e.target.value)}
-                    placeholder="e.g. VXREF-DIEGO"
+                    placeholder="e.g. VXREF-1001"
                     className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>

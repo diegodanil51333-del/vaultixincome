@@ -586,6 +586,47 @@ const SEED_ACCOUNTS: User[] = [
     totalProfitLoss: 0.0,
     referralCode: 'VXREF-1005',
     createdAt: new Date().toISOString()
+  },
+  {
+    userId: 'USR-287681',
+    accountId: 'VX-287681',
+    username: 'jamesdaniel',
+    fullName: 'James Daniel',
+    email: 'jamesdaniel@gmail.com',
+    passwordHash: 'jamesdaniel',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 0.0,
+    referralEarnings: 5.0,
+    bonusBalance: 5.0,
+    totalDeposits: 0.0,
+    totalInvestments: 0.0,
+    totalProfitLoss: 0.0,
+    referralCode: 'VXREF-2876',
+    createdAt: '2026-10-06T16:01:22.000Z'
+  }
+];
+
+export const SEED_TRANSACTIONS: Transaction[] = [
+  {
+    id: 'TX-287681',
+    userId: 'USR-287681',
+    type: 'DEPOSIT',
+    amount: 500,
+    currency: 'USDT',
+    status: 'PENDING',
+    timestamp: '2026-10-06T16:29:07.000Z',
+    note: 'Deposit request #TX-287681 of 500 USDT submitted! Status: PENDING'
+  },
+  {
+    id: 'TX-287680',
+    userId: 'USR-287681',
+    type: 'REFERRAL_REWARD',
+    amount: 5,
+    currency: 'USD',
+    status: 'COMPLETED',
+    timestamp: '2026-10-06T16:01:22.000Z',
+    note: 'Referral Signup Bonus ($5.00 locked in Bonus Wallet)'
   }
 ];
 
@@ -701,7 +742,7 @@ export function initFirestoreListeners() {
 export function initializeDatabase() {
   if (!localStorage.getItem(USERS_KEY)) {
     localStorage.setItem(USERS_KEY, JSON.stringify(SEED_ACCOUNTS));
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify([]));
+    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(SEED_TRANSACTIONS));
     localStorage.setItem(INVESTMENTS_KEY, JSON.stringify([]));
     localStorage.setItem(INVITATIONS_KEY, JSON.stringify([]));
     localStorage.setItem(AUDIT_LOGS_KEY, JSON.stringify([]));
@@ -710,131 +751,15 @@ export function initializeDatabase() {
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
   initFirestoreListeners();
-  syncFromCloud();
-  syncToCloud();
 }
 
-// --- CLOUD SYNC ENGINE FOR WORLDWIDE CROSS-DEVICE REALTIME CONSISTENCY ---
+// --- FIRESTORE IS THE SOLE CLOUD DATABASE SOURCE OF TRUTH ---
 async function syncFromCloud() {
-  try {
-    const res = await fetch(CLOUD_SYNC_URL + '/latest', {
-      headers: { 'X-Master-Key': CLOUD_MASTER_KEY }
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const record = json.record;
-      if (record && Array.isArray(record.users)) {
-        const localUsers = getUsersLocal();
-        const mergedMap = new Map<string, User>();
-        
-        // 1. Seed accounts
-        SEED_ACCOUNTS.forEach((u) => mergedMap.set(u.userId, u));
-        
-        // 2. Cloud users
-        record.users.forEach((u: User) => {
-          if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
-            u.role = 'USER';
-            u.referralCode = 'VXREF-DIEGO';
-          }
-          mergedMap.set(u.userId, u);
-        });
-
-        // 3. Local users (Local edits/new registrations MUST NOT be lost)
-        localUsers.forEach((u) => {
-          if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
-            u.role = 'USER';
-            u.referralCode = 'VXREF-DIEGO';
-          }
-          const existing = mergedMap.get(u.userId);
-          if (!existing) {
-            mergedMap.set(u.userId, u);
-          } else {
-            // Keep highest balance and deposit activity
-            mergedMap.set(u.userId, {
-              ...existing,
-              ...u,
-              balance: Math.max(existing.balance || 0, u.balance || 0),
-              referralEarnings: Math.max(existing.referralEarnings || 0, u.referralEarnings || 0),
-              totalDeposits: Math.max(existing.totalDeposits || 0, u.totalDeposits || 0)
-            });
-          }
-        });
-
-        const mergedUsers = Array.from(mergedMap.values());
-        localStorage.setItem(USERS_KEY, JSON.stringify(mergedUsers));
-
-        if (Array.isArray(record.transactions)) {
-          const localTxs = getTransactionsLocal();
-          const txMap = new Map<string, Transaction>();
-          
-          record.transactions.forEach((t: Transaction) => txMap.set(t.id, t));
-          
-          localTxs.forEach((lt) => {
-            const existing = txMap.get(lt.id);
-            if (!existing) {
-              txMap.set(lt.id, lt);
-            } else {
-              // Terminal statuses (APPROVED, REJECTED, CANCELLED, COMPLETED) ALWAYS override PENDING
-              if (existing.status === 'PENDING' && lt.status !== 'PENDING') {
-                txMap.set(lt.id, lt);
-              } else if (existing.status !== 'PENDING' && lt.status === 'PENDING') {
-                // Keep terminal status
-              } else {
-                txMap.set(lt.id, lt);
-              }
-            }
-          });
-
-          localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(Array.from(txMap.values())));
-        }
-
-        if (Array.isArray(record.investments)) {
-          const localInvs = getInvestmentsLocal();
-          const invMap = new Map<string, UserInvestment>();
-          record.investments.forEach((i: UserInvestment) => invMap.set(i.id, i));
-          localInvs.forEach((i: UserInvestment) => invMap.set(i.id, i));
-          localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(Array.from(invMap.values())));
-        }
-
-        if (Array.isArray(record.wallets) && record.wallets.length > 0) {
-          localStorage.setItem(WALLETS_KEY, JSON.stringify(record.wallets));
-        }
-
-        if (Array.isArray(record.plans) && record.plans.length > 0) {
-          localStorage.setItem(PLANS_KEY, JSON.stringify(record.plans));
-        }
-
-        if (record.referralConfig) {
-          localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(record.referralConfig));
-        }
-      }
-    }
-  } catch {
-    // Fail-safe to local storage if offline
-  }
+  // No-op: Firestore onSnapshot real-time listener manages cross-device sync
 }
 
 async function syncToCloud() {
-  try {
-    const payload = {
-      users: getUsersLocal(),
-      transactions: getTransactionsLocal(),
-      investments: getInvestmentsLocal(),
-      wallets: getWalletsLocal(),
-      plans: getPlansLocal(),
-      referralConfig: getReferralConfigLocal()
-    };
-    await fetch(CLOUD_SYNC_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': CLOUD_MASTER_KEY
-      },
-      body: JSON.stringify(payload)
-    });
-  } catch {
-    // Offline resilience
-  }
+  // No-op: syncUsersToFirestore and syncTxsToFirestore handle cloud writes
 }
 
 // Helper to emit real-time window update events across components and tabs
@@ -899,9 +824,24 @@ export function saveUsers(users: User[]) {
 function getTransactionsLocal(): Transaction[] {
   try {
     const d = localStorage.getItem(TRANSACTIONS_KEY);
-    return d ? JSON.parse(d) : [];
+    const parsed: Transaction[] = d ? JSON.parse(d) : SEED_TRANSACTIONS;
+    const txMap = new Map<string, Transaction>();
+    SEED_TRANSACTIONS.forEach((s) => txMap.set(s.id, s));
+    parsed.forEach((p) => {
+      const existing = txMap.get(p.id);
+      if (!existing) {
+        txMap.set(p.id, p);
+      } else {
+        if (existing.status === 'PENDING' && p.status !== 'PENDING') {
+          txMap.set(p.id, p);
+        } else {
+          txMap.set(p.id, p);
+        }
+      }
+    });
+    return Array.from(txMap.values());
   } catch {
-    return [];
+    return SEED_TRANSACTIONS;
   }
 }
 
