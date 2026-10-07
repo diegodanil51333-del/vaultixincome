@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, Transaction, AuditLog } from '../types';
 import {
-  getUsers, saveUsers, getTransactions, approveDepositTransaction, rejectDepositTransaction,
+  getUsers, saveUsers, getTransactions, saveTransactions, approveDepositTransaction, rejectDepositTransaction,
   cancelDepositTransaction, approveWithdrawalTransaction, cancelWithdrawalTransaction,
   getAuditLogs, saveAuditLogs, getWallets, saveWallets, getReferralConfig, saveReferralConfig, getPlans, savePlans
 } from '../db';
-import { ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, ArrowUpRight, Layers, Sliders, Activity } from 'lucide-react';
+import { db, collection, getDocs } from '../firebase';
+import { ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, ArrowUpRight, Layers, Sliders, Activity, RefreshCw } from 'lucide-react';
 import { TransactionReceiptModal } from './TransactionReceiptModal';
 
 interface AdminScreenProps {
@@ -36,8 +37,11 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
 
   // INSTANT REALTIME DATA REVALIDATION ENGINE FOR ADMIN OVERVIEW
   useEffect(() => {
+    fetchFromFirestore();
     refreshData();
-    const interval = setInterval(refreshData, 1000);
+    const interval = setInterval(() => {
+      refreshData();
+    }, 2000);
 
     const handleUpdate = () => refreshData();
     window.addEventListener('vaultix_users_updated', handleUpdate);
@@ -51,6 +55,37 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
       window.removeEventListener('storage', handleUpdate);
     };
   }, []);
+
+  const fetchFromFirestore = async () => {
+    try {
+      const [userSnap, txSnap] = await Promise.all([
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'transactions'))
+      ]);
+
+      const fetchedUsers: User[] = [];
+      userSnap.forEach((doc) => {
+        const u = doc.data() as User;
+        if (u && u.userId) fetchedUsers.push(u);
+      });
+
+      const fetchedTxs: Transaction[] = [];
+      txSnap.forEach((doc) => {
+        const t = doc.data() as Transaction;
+        if (t && t.id) fetchedTxs.push(t);
+      });
+
+      if (fetchedUsers.length > 0) {
+        saveUsers(fetchedUsers);
+      }
+      if (fetchedTxs.length > 0) {
+        saveTransactions(fetchedTxs);
+      }
+      refreshData();
+    } catch (err: any) {
+      console.error('Admin direct Firestore fetch error:', err);
+    }
+  };
 
   const refreshData = () => {
     setUsers(getUsers());

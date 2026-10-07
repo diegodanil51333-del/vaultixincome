@@ -225,11 +225,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         try {
           const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
           uid = signCred.user.uid;
-        } catch {
-          uid = `USR-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+        } catch (signInErr: any) {
+          setError('This email is already registered in Firebase. Please log in instead or use another email.');
+          return;
         }
       } else {
-        uid = `USR-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+        console.error('Firebase Auth registration error:', authErr);
+        setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please check your credentials/network.`);
+        return;
       }
     }
 
