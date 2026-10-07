@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
 import { getWallets, submitDeposit, submitWithdrawalRequest, submitBonusWithdrawalRequest, calculateWithdrawalFee, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelOwnPendingDeposit } from '../db';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Copy, Check, AlertCircle, CheckCircle, Mail, QrCode, Gift, ShieldCheck } from 'lucide-react';
@@ -27,6 +27,26 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
   const [withdrawNetwork, setWithdrawNetwork] = useState('TRC20 (Tron)');
   const [wError, setWError] = useState<string | null>(null);
   const [wSuccess, setWSuccess] = useState<string | null>(null);
+
+  // Real-time synchronization interval for instant status/balance updates
+  useEffect(() => {
+    const handleUpdate = () => {
+      const freshUser = getUsers().find((u) => u.userId === user.userId);
+      if (freshUser) {
+        onUserUpdated(freshUser);
+      }
+    };
+
+    const interval = setInterval(handleUpdate, 1000);
+    window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('vaultix_txs_updated', handleUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('vaultix_txs_updated', handleUpdate);
+    };
+  }, [user.userId]);
 
   const selectedWallet = wallets.find((w) => w.symbol === selectedSymbol) || wallets[0];
   const userTransactions = getTransactions().filter((tx) => tx.userId === user.userId);

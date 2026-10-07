@@ -269,17 +269,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       newTxs.push(signupTx);
     }
 
-    // Direct, Awaited Firestore Writes to Guarantee Instant Production Synchronization
+    // Direct Awaited Firestore Document Creation
     try {
-      await setDoc(doc(db, 'users', newUser.userId), newUser, { merge: true });
+      await setDoc(doc(db, 'users', newUser.userId), newUser);
       if (referrerUser) {
         await setDoc(doc(db, 'users', referrerUser.userId), referrerUser, { merge: true });
       }
       for (const t of newTxs) {
-        await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
+        await setDoc(doc(db, 'transactions', t.id), t);
       }
-    } catch (fsErr) {
-      console.warn('Firestore direct write notice:', fsErr);
+    } catch (fsErr: any) {
+      console.error('Firestore registration document error:', fsErr);
+      setError(`Registration Failed: Could not write user document to Firestore (${fsErr.message || fsErr}). Check network/Firebase configuration.`);
+      return;
     }
 
     users.push(newUser);

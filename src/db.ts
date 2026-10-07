@@ -11,10 +11,6 @@ const REFERRAL_CONFIG_KEY = 'vaultix_ref_config_v13';
 const PLANS_KEY = 'vaultix_plans_v13';
 const SESSION_KEY = 'vaultix_session_v13';
 
-// Global Cloud Sync Endpoint to ensure Cross-Device Multi-Tenant Data Sync (iPhone, Android, Desktop, Vercel)
-const CLOUD_SYNC_URL = 'https://api.jsonbin.io/v3/b/66f82902e41b4d34e439d56f';
-const CLOUD_MASTER_KEY = '$2a$10$w6M6N7g4Y6kR1W3c/7T3O.E7f3p8h9J1k2L3m4N5o6P7Q8R9S0T1U';
-
 // System Default Configurations
 export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
   {
@@ -488,26 +484,18 @@ export const SEED_ACCOUNTS: User[] = [SYSTEM_ADMIN_ACCOUNT];
 export const SEED_TRANSACTIONS: Transaction[] = [];
 
 async function syncUsersToFirestore(users: User[]) {
-  try {
-    for (const u of users) {
-      if (u.userId) {
-        await setDoc(doc(db, 'users', u.userId), u, { merge: true });
-      }
+  for (const u of users) {
+    if (u.userId) {
+      await setDoc(doc(db, 'users', u.userId), u, { merge: true });
     }
-  } catch (err) {
-    console.error('Firestore user sync error:', err);
   }
 }
 
 async function syncTxsToFirestore(txs: Transaction[]) {
-  try {
-    for (const t of txs) {
-      if (t.id) {
-        await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
-      }
+  for (const t of txs) {
+    if (t.id) {
+      await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
     }
-  } catch (err) {
-    console.error('Firestore tx sync error:', err);
   }
 }
 
@@ -538,7 +526,7 @@ export function initFirestoreListeners() {
         emitDataUpdateEvents('users');
       }
     }, (err) => {
-      console.warn('Firestore users snapshot error:', err);
+      console.error('Firestore users snapshot listener error:', err);
     });
 
     // Listen to Firestore Transactions collection in real time
@@ -556,10 +544,10 @@ export function initFirestoreListeners() {
         emitDataUpdateEvents('txs');
       }
     }, (err) => {
-      console.warn('Firestore transactions snapshot error:', err);
+      console.error('Firestore transactions snapshot listener error:', err);
     });
   } catch (err) {
-    console.warn('Firestore listeners initialization exception:', err);
+    console.error('Firestore listeners initialization exception:', err);
   }
 }
 
@@ -575,15 +563,6 @@ export function initializeDatabase() {
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
   initFirestoreListeners();
-}
-
-// --- FIRESTORE IS THE SOLE CLOUD DATABASE SOURCE OF TRUTH ---
-async function syncFromCloud() {
-  // Real-time Firestore onSnapshot listeners handle live multi-tenant state
-}
-
-async function syncToCloud() {
-  // Handled directly via Firestore setDoc
 }
 
 // Helper to emit real-time window update events across components and tabs
@@ -670,7 +649,6 @@ export function getInvestments(): UserInvestment[] {
 
 export function saveInvestments(invs: UserInvestment[]) {
   localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(invs));
-  syncToCloud();
 }
 
 export function getInvitations(): Invitation[] {
@@ -714,7 +692,6 @@ export function getWallets(): CryptoWalletConfig[] {
 
 export function saveWallets(wallets: CryptoWalletConfig[]) {
   localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
-  syncToCloud();
 }
 
 function getReferralConfigLocal(): ReferralConfig {
@@ -732,7 +709,6 @@ export function getReferralConfig(): ReferralConfig {
 
 export function saveReferralConfig(cfg: ReferralConfig) {
   localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
-  syncToCloud();
 }
 
 function getPlansLocal(): InvestmentPlan[] {
@@ -754,7 +730,6 @@ export function getPlans(): InvestmentPlan[] {
 
 export function savePlans(plans: InvestmentPlan[]) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
-  syncToCloud();
 }
 
 // --- TRIPLE-BACKED INDESTRUCTIBLE SESSION PERSISTENCE ENGINE ---
@@ -910,7 +885,6 @@ export function processMaturedInvestments() {
           saveCurrentSession(updatedUser);
         }
       }
-      syncToCloud();
       emitDataUpdateEvents('all');
     }
   } catch {
