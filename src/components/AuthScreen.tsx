@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, Transaction } from '../types';
 import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions } from '../db';
+import { auth, db, doc, setDoc } from '../firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
 import { AmbientBackground } from './AmbientBackground';
 
@@ -28,6 +30,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
   useEffect(() => {
     setTab(initialTab);
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const refParam = urlParams.get('ref') || urlParams.get('referral');
+        if (refParam && refParam.trim()) {
+          setReferralCodeInput(refParam.trim().toUpperCase());
+          setTab('register');
+        }
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
   }, [initialTab]);
 
   // Auto-detect referral code from URL formats like `https://vaultixincome.vercel.app/=VXREF-3316` or `?ref=VXREF-3316`
@@ -103,7 +117,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     onLoginSuccess(foundUser);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
@@ -143,20 +157,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     let referrerUsername: string | undefined = undefined;
     let referrerDisplayName: string | undefined = undefined;
     let initialBonusBalance = 0.0;
+    let referrerUser: User | undefined = undefined;
+    const newTxs: any[] = [];
     const txs = getTransactions();
 
     if (referralCodeInput.trim()) {
       const codeClean = referralCodeInput.trim().toUpperCase();
-      let referrer = users.find((u) => u.referralCode.toUpperCase() === codeClean || u.username.toUpperCase() === codeClean);
-      
-      // Fallback for VXREF-DIEGO or DIEGO
-      if (!referrer && (codeClean === 'VXREF-DIEGO' || codeClean === 'DIEGO')) {
-        referrer = users.find((u) => u.username.toLowerCase() === 'diegodaniel4401' || u.email.toLowerCase() === 'diegodaniel4401@gmail.com');
-      }
+      referrerUser = users.find((u) => u.referralCode.toUpperCase() === codeClean || u.username.toUpperCase() === codeClean);
 
       // Special admin testing code handling
-      if (!referrer && codeClean === 'VXREF-ADMIN') {
-        referrer = users.find((u) => u.role === 'ADMIN') || {
+      if (!referrerUser && codeClean === 'VXREF-ADMIN') {
+        referrerUser = users.find((u) => u.role === 'ADMIN') || {
           userId: 'USR-000001',
           accountId: 'VX-100001',
           username: 'vaultix_admin',
@@ -175,24 +186,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         };
       }
 
-      if (referrer) {
-        referrerUsername = referrer.username;
-        referrerDisplayName = referrer.fullName || referrer.username;
+      if (referrerUser) {
+        referrerUsername = referrerUser.username;
+        referrerDisplayName = referrerUser.fullName || referrerUser.username;
 
         // Referrer receives $10.00 referral bonus in Bonus Balance
-        referrer.bonusBalance = (referrer.bonusBalance || 0) + 10.0;
-        referrer.referralEarnings = (referrer.referralEarnings || 0) + 10.0;
+        referrerUser.bonusBalance = (referrerUser.bonusBalance || 0) + 10.0;
+        referrerUser.referralEarnings = (referrerUser.referralEarnings || 0) + 10.0;
 
-        txs.unshift({
+        const refTx: Transaction = {
           id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-          userId: referrer.userId,
+          userId: referrerUser.userId,
           type: 'REFERRAL_REWARD',
           amount: 10.0,
           currency: 'USD',
           status: 'COMPLETED',
           timestamp: new Date().toISOString(),
           note: `Referral Bonus ($10.00 locked) for inviting @${username.trim()}`
-        });
+        };
+        txs.unshift(refTx);
+        newTxs.push(refTx);
 
         // Newly registered user receives $5.00 referral bonus in Bonus Balance
         initialBonusBalance = 5.0;
@@ -202,8 +215,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
     }
 
+    // Register with Firebase Auth to obtain real UID
+    let uid = '';
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      uid = userCredential.user.uid;
+    } catch (authErr: any) {
+      if (authErr.code === 'auth/email-already-in-use') {
+        try {
+          const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          uid = signCred.user.uid;
+        } catch {
+          uid = `USR-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+        }
+      } else {
+        uid = `USR-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+      }
+    }
+
     const newUser: User = {
-      userId: `USR-${Math.floor(100000 + Math.random() * 900000)}`,
+      userId: uid,
       accountId: `VX-${Math.floor(100000 + Math.random() * 900000)}`,
       username: username.trim(),
       fullName: fullName.trim(),
@@ -224,7 +255,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     };
 
     if (initialBonusBalance > 0) {
-      txs.unshift({
+      const signupTx: Transaction = {
         id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
         userId: newUser.userId,
         type: 'REFERRAL_REWARD',
@@ -233,7 +264,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         status: 'COMPLETED',
         timestamp: new Date().toISOString(),
         note: `Referral Signup Bonus ($5.00 locked in Bonus Wallet)`
-      });
+      };
+      txs.unshift(signupTx);
+      newTxs.push(signupTx);
+    }
+
+    // Direct, Awaited Firestore Writes to Guarantee Instant Production Synchronization
+    try {
+      await setDoc(doc(db, 'users', newUser.userId), newUser, { merge: true });
+      if (referrerUser) {
+        await setDoc(doc(db, 'users', referrerUser.userId), referrerUser, { merge: true });
+      }
+      for (const t of newTxs) {
+        await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
+      }
+    } catch (fsErr) {
+      console.warn('Firestore direct write notice:', fsErr);
     }
 
     users.push(newUser);
@@ -485,7 +531,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
                     type="text"
                     value={referralCodeInput}
                     onChange={(e) => setReferralCodeInput(e.target.value)}
-                    placeholder="e.g. VXREF-1001"
+                    placeholder="Enter referral code (optional)"
                     className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>

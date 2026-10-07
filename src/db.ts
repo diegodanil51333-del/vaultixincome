@@ -465,170 +465,27 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
   }
 ];
 
-// Preserved Initial Production Accounts Matrix
-const SEED_ACCOUNTS: User[] = [
-  {
-    userId: 'USR-000000',
-    accountId: 'VX-100000',
-    username: 'diegodaniel4401',
-    fullName: 'Diego Daniel',
-    email: 'diegodaniel4401@gmail.com',
-    passwordHash: 'diegodaniel4401',
-    role: 'USER', // Strictly role USER
-    accountStatus: 'ACTIVE',
-    balance: 0.0,
-    referralEarnings: 0.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-DIEGO',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000001',
-    accountId: 'VX-100001',
-    username: 'vaultix_admin',
-    fullName: 'Vaultix Administrator',
-    email: 'vaultixincometeam@outlook.com',
-    passwordHash: 'Mmadu51366414@',
-    role: 'ADMIN',
-    accountStatus: 'ACTIVE',
-    balance: 0.0,
-    referralEarnings: 0.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-ADMIN',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000003',
-    accountId: 'VX-100003',
-    username: 'testuser1',
-    fullName: 'Test User One',
-    email: 'testuser1@vaultix.com',
-    passwordHash: 'password123',
-    role: 'USER',
-    accountStatus: 'ACTIVE',
-    balance: 100.0,
-    referralEarnings: 10.0,
-    totalDeposits: 100.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-1001',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000004',
-    accountId: 'VX-100004',
-    username: 'testuser2',
-    fullName: 'Test User Two',
-    email: 'testuser2@vaultix.com',
-    passwordHash: 'password123',
-    role: 'USER',
-    accountStatus: 'ACTIVE',
-    balance: 5.0, // $5.00 Signup Bonus from referral
-    referralEarnings: 0.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-1002',
-    referredByUsername: 'testuser1',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000005',
-    accountId: 'VX-100005',
-    username: 'testuser3',
-    fullName: 'Test User Three',
-    email: 'testuser3@vaultix.com',
-    passwordHash: 'password123',
-    role: 'USER',
-    accountStatus: 'ACTIVE',
-    balance: 250.0,
-    referralEarnings: 0.0,
-    totalDeposits: 250.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-1003',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000006',
-    accountId: 'VX-100006',
-    username: 'testuser4',
-    fullName: 'Test User Four',
-    email: 'testuser4@vaultix.com',
-    passwordHash: 'password123',
-    role: 'USER',
-    accountStatus: 'ACTIVE',
-    balance: 50.0,
-    referralEarnings: 50.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-1004',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-000007',
-    accountId: 'VX-100007',
-    username: 'testuser5',
-    fullName: 'Test User Five',
-    email: 'testuser5@vaultix.com',
-    passwordHash: 'password123',
-    role: 'USER',
-    accountStatus: 'ACTIVE',
-    balance: 0.0,
-    referralEarnings: 0.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-1005',
-    createdAt: new Date().toISOString()
-  },
-  {
-    userId: 'USR-287681',
-    accountId: 'VX-287681',
-    username: 'jamesdaniel',
-    fullName: 'James Daniel',
-    email: 'jamesdaniel@gmail.com',
-    passwordHash: 'jamesdaniel',
-    role: 'USER',
-    accountStatus: 'ACTIVE',
-    balance: 0.0,
-    referralEarnings: 5.0,
-    bonusBalance: 5.0,
-    totalDeposits: 0.0,
-    totalInvestments: 0.0,
-    totalProfitLoss: 0.0,
-    referralCode: 'VXREF-2876',
-    createdAt: '2026-10-06T16:01:22.000Z'
-  }
-];
+// Preserved Initial System Admin Account
+export const SYSTEM_ADMIN_ACCOUNT: User = {
+  userId: 'USR-000001',
+  accountId: 'VX-100001',
+  username: 'vaultix_admin',
+  fullName: 'Vaultix Administrator',
+  email: 'vaultixincometeam@outlook.com',
+  passwordHash: 'Mmadu51366414@',
+  role: 'ADMIN',
+  accountStatus: 'ACTIVE',
+  balance: 0.0,
+  referralEarnings: 0.0,
+  totalDeposits: 0.0,
+  totalInvestments: 0.0,
+  totalProfitLoss: 0.0,
+  referralCode: 'VXREF-ADMIN',
+  createdAt: '2026-01-01T00:00:00.000Z'
+};
 
-export const SEED_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'TX-287681',
-    userId: 'USR-287681',
-    type: 'DEPOSIT',
-    amount: 500,
-    currency: 'USDT',
-    status: 'PENDING',
-    timestamp: '2026-10-06T16:29:07.000Z',
-    note: 'Deposit request #TX-287681 of 500 USDT submitted! Status: PENDING'
-  },
-  {
-    id: 'TX-287680',
-    userId: 'USR-287681',
-    type: 'REFERRAL_REWARD',
-    amount: 5,
-    currency: 'USD',
-    status: 'COMPLETED',
-    timestamp: '2026-10-06T16:01:22.000Z',
-    note: 'Referral Signup Bonus ($5.00 locked in Bonus Wallet)'
-  }
-];
+export const SEED_ACCOUNTS: User[] = [SYSTEM_ADMIN_ACCOUNT];
+export const SEED_TRANSACTIONS: Transaction[] = [];
 
 async function syncUsersToFirestore(users: User[]) {
   try {
@@ -637,8 +494,8 @@ async function syncUsersToFirestore(users: User[]) {
         await setDoc(doc(db, 'users', u.userId), u, { merge: true });
       }
     }
-  } catch {
-    // Non-blocking fallback
+  } catch (err) {
+    console.error('Firestore user sync error:', err);
   }
 }
 
@@ -649,8 +506,8 @@ async function syncTxsToFirestore(txs: Transaction[]) {
         await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
       }
     }
-  } catch {
-    // Non-blocking fallback
+  } catch (err) {
+    console.error('Firestore tx sync error:', err);
   }
 }
 
@@ -663,79 +520,46 @@ export function initFirestoreListeners() {
   try {
     // Listen to Firestore Users collection in real time
     onSnapshot(collection(db, 'users'), (snapshot) => {
-      if (snapshot && !snapshot.empty) {
+      if (snapshot) {
         const firestoreUsers: User[] = [];
         snapshot.forEach((docSnap) => {
-          firestoreUsers.push(docSnap.data() as User);
+          const data = docSnap.data() as User;
+          if (data && data.userId) {
+            firestoreUsers.push(data);
+          }
         });
 
-        if (firestoreUsers.length > 0) {
-          const localUsers = getUsersLocal();
-          const userMap = new Map<string, User>();
+        const userMap = new Map<string, User>();
+        userMap.set(SYSTEM_ADMIN_ACCOUNT.userId, SYSTEM_ADMIN_ACCOUNT);
+        firestoreUsers.forEach((f) => userMap.set(f.userId, f));
 
-          SEED_ACCOUNTS.forEach((s) => userMap.set(s.userId, s));
-          localUsers.forEach((l) => userMap.set(l.userId, l));
-          firestoreUsers.forEach((f) => {
-            if (f.email?.toLowerCase() === 'diegodaniel4401@gmail.com' || f.username?.toLowerCase() === 'diegodaniel4401') {
-              f.role = 'USER';
-              f.referralCode = 'VXREF-DIEGO';
-            }
-            const existing = userMap.get(f.userId);
-            if (!existing) {
-              userMap.set(f.userId, f);
-            } else {
-              userMap.set(f.userId, {
-                ...existing,
-                ...f,
-                balance: Math.max(existing.balance || 0, f.balance || 0),
-                referralEarnings: Math.max(existing.referralEarnings || 0, f.referralEarnings || 0),
-                totalDeposits: Math.max(existing.totalDeposits || 0, f.totalDeposits || 0)
-              });
-            }
-          });
-
-          const merged = Array.from(userMap.values());
-          localStorage.setItem(USERS_KEY, JSON.stringify(merged));
-          emitDataUpdateEvents('users');
-        }
+        const merged = Array.from(userMap.values());
+        localStorage.setItem(USERS_KEY, JSON.stringify(merged));
+        emitDataUpdateEvents('users');
       }
-    }, () => {});
+    }, (err) => {
+      console.warn('Firestore users snapshot error:', err);
+    });
 
     // Listen to Firestore Transactions collection in real time
     onSnapshot(collection(db, 'transactions'), (snapshot) => {
-      if (snapshot && !snapshot.empty) {
+      if (snapshot) {
         const firestoreTxs: Transaction[] = [];
         snapshot.forEach((docSnap) => {
-          firestoreTxs.push(docSnap.data() as Transaction);
+          const data = docSnap.data() as Transaction;
+          if (data && data.id) {
+            firestoreTxs.push(data);
+          }
         });
 
-        if (firestoreTxs.length > 0) {
-          const localTxs = getTransactionsLocal();
-          const txMap = new Map<string, Transaction>();
-
-          localTxs.forEach((l) => txMap.set(l.id, l));
-          firestoreTxs.forEach((f) => {
-            const existing = txMap.get(f.id);
-            if (!existing) {
-              txMap.set(f.id, f);
-            } else {
-              if (existing.status === 'PENDING' && f.status !== 'PENDING') {
-                txMap.set(f.id, f);
-              } else if (existing.status !== 'PENDING' && f.status === 'PENDING') {
-                // Keep terminal status
-              } else {
-                txMap.set(f.id, f);
-              }
-            }
-          });
-
-          localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(Array.from(txMap.values())));
-          emitDataUpdateEvents('txs');
-        }
+        localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(firestoreTxs));
+        emitDataUpdateEvents('txs');
       }
-    }, () => {});
-  } catch {
-    // Non-blocking fallback
+    }, (err) => {
+      console.warn('Firestore transactions snapshot error:', err);
+    });
+  } catch (err) {
+    console.warn('Firestore listeners initialization exception:', err);
   }
 }
 
@@ -755,11 +579,11 @@ export function initializeDatabase() {
 
 // --- FIRESTORE IS THE SOLE CLOUD DATABASE SOURCE OF TRUTH ---
 async function syncFromCloud() {
-  // No-op: Firestore onSnapshot real-time listener manages cross-device sync
+  // Real-time Firestore onSnapshot listeners handle live multi-tenant state
 }
 
 async function syncToCloud() {
-  // No-op: syncUsersToFirestore and syncTxsToFirestore handle cloud writes
+  // Handled directly via Firestore setDoc
 }
 
 // Helper to emit real-time window update events across components and tabs
@@ -783,40 +607,31 @@ function emitDataUpdateEvents(type: 'users' | 'txs' | 'all' = 'all') {
 function getUsersLocal(): User[] {
   try {
     const d = localStorage.getItem(USERS_KEY);
-    const parsed: User[] = d ? JSON.parse(d) : SEED_ACCOUNTS;
+    const parsed: User[] = d ? JSON.parse(d) : [SYSTEM_ADMIN_ACCOUNT];
     const map = new Map<string, User>();
-    SEED_ACCOUNTS.forEach((s) => map.set(s.userId, s));
+    map.set(SYSTEM_ADMIN_ACCOUNT.userId, SYSTEM_ADMIN_ACCOUNT);
     parsed.forEach((p) => {
-      if (p.email.toLowerCase() === 'diegodaniel4401@gmail.com' || p.username.toLowerCase() === 'diegodaniel4401') {
-        p.role = 'USER';
-      }
-      map.set(p.userId, p);
+      if (p.userId) map.set(p.userId, p);
     });
     return Array.from(map.values());
   } catch {
-    return SEED_ACCOUNTS;
+    return [SYSTEM_ADMIN_ACCOUNT];
   }
 }
 
 export function getUsers(): User[] {
   processMaturedInvestments();
-  syncFromCloud(); // Non-blocking background sync
   return getUsersLocal();
 }
 
 export function saveUsers(users: User[]) {
   const map = new Map<string, User>();
-  SEED_ACCOUNTS.forEach((s) => map.set(s.userId, s));
+  map.set(SYSTEM_ADMIN_ACCOUNT.userId, SYSTEM_ADMIN_ACCOUNT);
   users.forEach((u) => {
-    if (u.email.toLowerCase() === 'diegodaniel4401@gmail.com' || u.username.toLowerCase() === 'diegodaniel4401') {
-      u.role = 'USER';
-      u.referralCode = 'VXREF-DIEGO';
-    }
-    map.set(u.userId, u);
+    if (u.userId) map.set(u.userId, u);
   });
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
-  syncToCloud();
   syncUsersToFirestore(merged);
   emitDataUpdateEvents('users');
 }
@@ -824,24 +639,9 @@ export function saveUsers(users: User[]) {
 function getTransactionsLocal(): Transaction[] {
   try {
     const d = localStorage.getItem(TRANSACTIONS_KEY);
-    const parsed: Transaction[] = d ? JSON.parse(d) : SEED_TRANSACTIONS;
-    const txMap = new Map<string, Transaction>();
-    SEED_TRANSACTIONS.forEach((s) => txMap.set(s.id, s));
-    parsed.forEach((p) => {
-      const existing = txMap.get(p.id);
-      if (!existing) {
-        txMap.set(p.id, p);
-      } else {
-        if (existing.status === 'PENDING' && p.status !== 'PENDING') {
-          txMap.set(p.id, p);
-        } else {
-          txMap.set(p.id, p);
-        }
-      }
-    });
-    return Array.from(txMap.values());
+    return d ? JSON.parse(d) : [];
   } catch {
-    return SEED_TRANSACTIONS;
+    return [];
   }
 }
 
@@ -851,7 +651,6 @@ export function getTransactions(): Transaction[] {
 
 export function saveTransactions(txs: Transaction[]) {
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
-  syncToCloud();
   syncTxsToFirestore(txs);
   emitDataUpdateEvents('txs');
 }
