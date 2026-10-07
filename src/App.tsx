@@ -14,6 +14,7 @@ import { SupportScreen } from './components/SupportScreen';
 import { AdminScreen } from './components/AdminScreen';
 import { AmbientBackground } from './components/AmbientBackground';
 import { Footer } from './components/Footer';
+import { PublicWithdrawalToast } from './components/PublicWithdrawalToast';
 
 const TAB_STORAGE_KEY = 'vaultix_current_tab_v10';
 
@@ -123,6 +124,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col font-sans relative">
       <AmbientBackground />
+      <PublicWithdrawalToast />
       <Navbar user={currentUser} onLogout={handleLogout} />
 
       <div className="flex-1 flex flex-col md:flex-row relative z-10">

@@ -518,7 +518,6 @@ export function initFirestoreListeners() {
         });
 
         const userMap = new Map<string, User>();
-        userMap.set(SYSTEM_ADMIN_ACCOUNT.userId, SYSTEM_ADMIN_ACCOUNT);
         firestoreUsers.forEach((f) => userMap.set(f.userId, f));
 
         const merged = Array.from(userMap.values());
@@ -586,15 +585,14 @@ function emitDataUpdateEvents(type: 'users' | 'txs' | 'all' = 'all') {
 function getUsersLocal(): User[] {
   try {
     const d = localStorage.getItem(USERS_KEY);
-    const parsed: User[] = d ? JSON.parse(d) : [SYSTEM_ADMIN_ACCOUNT];
+    const parsed: User[] = d ? JSON.parse(d) : [];
     const map = new Map<string, User>();
-    map.set(SYSTEM_ADMIN_ACCOUNT.userId, SYSTEM_ADMIN_ACCOUNT);
     parsed.forEach((p) => {
       if (p.userId) map.set(p.userId, p);
     });
     return Array.from(map.values());
   } catch {
-    return [SYSTEM_ADMIN_ACCOUNT];
+    return [];
   }
 }
 
@@ -605,7 +603,6 @@ export function getUsers(): User[] {
 
 export function saveUsers(users: User[]) {
   const map = new Map<string, User>();
-  map.set(SYSTEM_ADMIN_ACCOUNT.userId, SYSTEM_ADMIN_ACCOUNT);
   users.forEach((u) => {
     if (u.userId) map.set(u.userId, u);
   });

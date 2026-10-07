@@ -412,7 +412,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                     </div>
                     <div className="text-xs text-slate-400 mt-1 space-y-1">
                       <div>
-                        <span className="font-bold text-white">{u.fullName}</span> • {u.email} • UID: <span className="font-mono text-slate-300">{u.userId}</span> • Acc ID: <span className="font-mono text-slate-300">{u.accountId}</span>
+                        <span className="font-bold text-white">{u.fullName}</span> • {u.email} • Phone: <span className="font-mono text-emerald-400">{u.phoneNumber || 'N/A'}</span> • UID: <span className="font-mono text-slate-300">{u.userId}</span> • Acc ID: <span className="font-mono text-slate-300">{u.accountId}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] pt-0.5">
                         <span className="text-amber-400/90 font-semibold">Ref Code: <span className="font-mono text-amber-300">{u.referralCode || 'N/A'}</span></span>

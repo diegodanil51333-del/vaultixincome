@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
-import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions } from '../db';
+import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, SYSTEM_ADMIN_ACCOUNT } from '../db';
 import { auth, db, doc, setDoc } from '../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
@@ -21,6 +21,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [referralCodeInput, setReferralCodeInput] = useState('');
@@ -81,6 +82,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
     if (!cleanId || !cleanPass) {
       setError('Please enter your username/email and password.');
+      return;
+    }
+
+    // Direct Admin Login Check
+    if (
+      (cleanId === 'vaultix_admin' || cleanId === 'vaultixincometeam@outlook.com') &&
+      (cleanPass === 'mmadu51366414@' || cleanPass === 'vaultixadmin2026!secured')
+    ) {
+      saveCurrentSession(SYSTEM_ADMIN_ACCOUNT);
+      onLoginSuccess(SYSTEM_ADMIN_ACCOUNT);
       return;
     }
 
@@ -242,6 +253,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       username: username.trim(),
       fullName: fullName.trim(),
       email: email.trim(),
+      phoneNumber: phoneNumber.trim() || undefined,
       passwordHash: password,
       role: 'USER',
       accountStatus: 'ACTIVE',
@@ -497,6 +509,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
                     placeholder="name@example.com"
                     className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
                     required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Phone Number (Optional)</label>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+1 (555) 000-0000"
+                    className="w-full bg-[#1D2432] border border-[#2A3447] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
 
