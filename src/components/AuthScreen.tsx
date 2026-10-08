@@ -302,28 +302,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
     }
 
-    // Register with Firebase Auth or generate secure UID
+    // Register strictly with Firebase Auth to obtain real UID
     let uid = '';
-    if (isFirebaseConfigured) {
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        uid = userCredential.user.uid;
-      } catch (authErr: any) {
-        if (authErr.code === 'auth/email-already-in-use') {
-          try {
-            const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
-            uid = signCred.user.uid;
-          } catch (signInErr: any) {
-            setError('This email address is already registered. Please log in instead.');
-            return;
-          }
-        } else {
-          console.warn('Firebase Auth registration notice, continuing with app UID:', authErr.message || authErr);
-          uid = `VX-UID-${Math.floor(10000000 + Math.random() * 90000000)}`;
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      uid = userCredential.user.uid;
+    } catch (authErr: any) {
+      if (authErr.code === 'auth/email-already-in-use') {
+        try {
+          const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          uid = signCred.user.uid;
+        } catch (signInErr: any) {
+          setError('This email address is already registered. Please log in instead.');
+          return;
         }
+      } else {
+        console.error('Firebase Auth registration error:', authErr);
+        setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please verify your environment VITE_FIREBASE_API_KEY.`);
+        return;
       }
-    } else {
-      uid = `VX-UID-${Math.floor(10000000 + Math.random() * 90000000)}`;
     }
 
     const newUser: User = {
@@ -363,19 +360,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       newTxs.push(signupTx);
     }
 
-    // Attempt Direct Firestore Document Creation
-    if (isFirebaseConfigured) {
-      try {
-        await setDoc(doc(db, 'users', newUser.userId), newUser);
-        if (referrerUser) {
-          await setDoc(doc(db, 'users', referrerUser.userId), referrerUser, { merge: true });
-        }
-        for (const t of newTxs) {
-          await setDoc(doc(db, 'transactions', t.id), t);
-        }
-      } catch (fsErr: any) {
-        console.warn('Firestore registration document notice:', fsErr.message || fsErr);
+    // Direct Awaited Firestore Document Creation
+    try {
+      await setDoc(doc(db, 'users', newUser.userId), newUser);
+      if (referrerUser) {
+        await setDoc(doc(db, 'users', referrerUser.userId), referrerUser, { merge: true });
       }
+      for (const t of newTxs) {
+        await setDoc(doc(db, 'transactions', t.id), t);
+      }
+    } catch (fsErr: any) {
+      console.error('Firestore registration document error:', fsErr);
+      setError(`Registration Failed: Could not write user document to Firestore (${fsErr.message || fsErr}). Check network/Firebase configuration.`);
+      return;
     }
 
     users.push(newUser);

@@ -1,6 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 import { db, doc, setDoc, collection, onSnapshot } from './firebase';
-import { fetchAndMergeCloudData, pushStateToCloud } from './cloudSync';
 
 const USERS_KEY = 'vaultix_users_v13';
 const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
@@ -571,7 +570,6 @@ export function initializeDatabase() {
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
   initFirestoreListeners();
-  fetchAndMergeCloudData();
 }
 
 // Helper to emit real-time window update events across components and tabs
@@ -619,7 +617,6 @@ export function saveUsers(users: User[]) {
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
   syncUsersToFirestore(merged);
-  pushStateToCloud(merged, getTransactionsLocal());
   emitDataUpdateEvents('users');
 }
 
@@ -639,7 +636,6 @@ export function getTransactions(): Transaction[] {
 export function saveTransactions(txs: Transaction[]) {
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
   syncTxsToFirestore(txs);
-  pushStateToCloud(getUsersLocal(), txs);
   emitDataUpdateEvents('txs');
 }
 

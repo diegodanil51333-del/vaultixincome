@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from './types';
 import { initializeDatabase, getCurrentSession, saveCurrentSession, getUsers } from './db';
-import { startCloudSyncLoop } from './cloudSync';
 import { Navbar } from './components/Navbar';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { AuthScreen } from './components/AuthScreen';
@@ -28,7 +27,6 @@ export function App() {
 
   useEffect(() => {
     initializeDatabase();
-    const stopSync = startCloudSyncLoop(3000);
 
     // Synchronous session recovery with triple-key fallback
     const recoveredSession = getCurrentSession();
@@ -51,10 +49,6 @@ export function App() {
     }
 
     setIsInitialized(true);
-
-    return () => {
-      if (stopSync) stopSync();
-    };
   }, []);
 
   const setCurrentTab = (tab: NavTab) => {
