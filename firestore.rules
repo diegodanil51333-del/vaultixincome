@@ -18,10 +18,29 @@ service cloud.firestore {
       );
     }
 
-    // Users Collection: Private to owner or admin
+    // Users Collection: Private to owner or admin.
+    // Sensitive financial and status fields (role, balance, totalDeposits, accountStatus, etc.)
+    // CANNOT be set or modified by normal users.
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) || isAdmin();
+      
+      // Normal user registration rule: enforces that a newly registered authenticated user
+      // can create ONLY their own user document (request.auth.uid == userId), with safe default fields.
+      allow create: if (
+        isAuthenticated() &&
+        request.auth.uid == userId &&
+        request.resource.data.userId == userId &&
+        request.resource.data.role == 'USER' &&
+        request.resource.data.accountStatus == 'ACTIVE' &&
+        request.resource.data.balance <= 5.0 &&
+        request.resource.data.totalDeposits == 0 &&
+        request.resource.data.totalInvestments == 0 &&
+        request.resource.data.totalProfitLoss == 0 &&
+        request.resource.data.referralEarnings <= 5.0 &&
+        request.resource.data.bonusBalance <= 5.0
+      ) || isAdmin();
+
+      // Normal users CANNOT modify financial or administrative fields on update
       allow update: if isAdmin() || (
         isOwner(userId) && 
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
@@ -29,18 +48,28 @@ service cloud.firestore {
           'referralEarnings', 'bonusBalance', 'role', 'accountStatus'
         ])
       );
+
       allow delete: if isAdmin();
     }
 
-    // Transactions Collection: Private to owner and admin, or public approved/completed for ticker
+    // Transactions Collection: Private to owner and admin.
+    // Normal users can ONLY submit pending deposit or withdrawal requests for themselves.
+    // Normal users CANNOT create REFERRAL_REWARD, FIRST_DEPOSIT_BONUS, ADMIN_CREDIT, or ADMIN_DEBIT transactions, or transactions for other users.
+    // Status updates, approvals, rejections, and deletes are restricted exclusively to Admin.
     match /transactions/{txId} {
-      allow read: if isAdmin() || 
-        (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || resource.data.status == 'APPROVED' || resource.data.status == 'COMPLETED'));
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || (isAuthenticated() && resource != null && resource.data.userId == request.auth.uid);
+      
+      allow create: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'PENDING' &&
+        (request.resource.data.type == 'DEPOSIT' || request.resource.data.type == 'WITHDRAWAL' || request.resource.data.type == 'BONUS_WITHDRAWAL')
+      );
+      
       allow update, delete: if isAdmin();
     }
 
-    // Investment Plans & Wallets Collections
+    // Investment Plans & Wallets
     match /plans/{planId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -50,9 +79,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Audit Logs
+    match /audit_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
     // Diagnostics Collection
     match /_diagnostics/{docId} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -1158,12 +1158,8 @@ export async function submitWithdrawalRequest(
     note: `Withdrawal request #${txId} of $${amount.toFixed(2)} (Net: $${netAmount.toFixed(2)} after $${fee.toFixed(2)} fee) submitted! Status: PENDING`
   };
 
-  // MANDATORY: Await Cloud Database writes
-  await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
+  // MANDATORY: Await Cloud Database write for pending transaction
   await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
-
-  users[uIdx] = targetUser;
-  saveUsers(users);
 
   const txs = getTransactionsLocal();
   txs.unshift(newTx);
@@ -1213,12 +1209,8 @@ export async function submitBonusWithdrawalRequest(
     note: `Bonus Wallet Withdrawal Request #${txId} of $${amount.toFixed(2)} ($15 Network Fee Confirmed) -> ${destinationAddress}`
   };
 
-  // MANDATORY: Await Cloud Database writes
-  await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
+  // MANDATORY: Await Cloud Database write for pending transaction
   await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
-
-  users[uIdx] = targetUser;
-  saveUsers(users);
 
   const txs = getTransactionsLocal();
   txs.unshift(newTx);

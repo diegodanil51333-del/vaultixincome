@@ -86,20 +86,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     }
 
     // 1. Direct Admin Login Check
+    const isPassAdmin =
+      cleanPass === 'mmadu51366414@' ||
+      cleanPass === 'Mmadu51366414@' ||
+      cleanPass.toLowerCase() === 'mmadu51366414@' ||
+      cleanPass === 'vaultixadmin2026!secured';
+
     if (
-      (cleanId === 'vaultix_admin' || cleanId === 'vaultixincometeam@outlook.com') &&
-      (cleanPass === 'mmadu51366414@' || cleanPass === 'vaultixadmin2026!secured')
+      (cleanId === 'vaultix_admin' || cleanId === 'vaultixincometeam@outlook.com' || cleanId === 'vaultix_admin@vaultix.com') &&
+      isPassAdmin
     ) {
       try {
         const adminEmail = 'vaultixincometeam@outlook.com';
+        const adminAuthPass = 'Mmadu51366414@';
         let uid = '';
         try {
-          const cred = await signInWithEmailAndPassword(auth, adminEmail, cleanPass);
+          const cred = await signInWithEmailAndPassword(auth, adminEmail, adminAuthPass);
           uid = cred.user.uid;
         } catch (signInErr: any) {
-          if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
+          try {
+            const cred2 = await signInWithEmailAndPassword(auth, adminEmail, cleanPass);
+            uid = cred2.user.uid;
+          } catch (signInErr2: any) {
             try {
-              const newCred = await createUserWithEmailAndPassword(auth, adminEmail, cleanPass);
+              const newCred = await createUserWithEmailAndPassword(auth, adminEmail, adminAuthPass);
               uid = newCred.user.uid;
             } catch (createErr: any) {
               console.error('Admin Auth creation error:', createErr);
@@ -321,7 +331,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           note: `Referral Bonus ($10.00 locked) for inviting @${username.trim()}`
         };
         txs.unshift(refTx);
-        newTxs.push(refTx);
 
         // Newly registered user receives $5.00 referral bonus in Bonus Balance
         initialBonusBalance = 5.0;
@@ -393,18 +402,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         note: `Referral Signup Bonus ($5.00 locked in Bonus Wallet)`
       };
       txs.unshift(signupTx);
-      newTxs.push(signupTx);
     }
 
     // MANDATORY Direct Awaited Firestore Document Creation with Sanitization
     try {
       await setDoc(doc(db, 'users', newUser.userId), cleanFirestoreData(newUser));
-      if (referrerUser) {
-        await setDoc(doc(db, 'users', referrerUser.userId), cleanFirestoreData(referrerUser), { merge: true });
-      }
-      for (const t of newTxs) {
-        await setDoc(doc(db, 'transactions', t.id), cleanFirestoreData(t));
-      }
     } catch (fsErr: any) {
       console.error('Firestore registration document error:', fsErr);
       setError(`Registration Failed: Could not write user document to Cloud Database (${fsErr.message || fsErr}). Operation cancelled.`);
