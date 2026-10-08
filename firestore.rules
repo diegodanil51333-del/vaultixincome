@@ -11,15 +11,17 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        (request.auth.token.email == 'vaultixincometeam@outlook.com' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN');
+      return isAuthenticated() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'vaultixincometeam@outlook.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN')
+      );
     }
 
     // Users Collection: Private to owner or admin
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) || isAdmin();
       allow update: if isAdmin() || (
         isOwner(userId) && 
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([

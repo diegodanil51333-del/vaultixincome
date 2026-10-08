@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
 import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, SYSTEM_ADMIN_ACCOUNT } from '../db';
-import { auth, db, doc, setDoc } from '../firebase';
+import { auth, db, doc, setDoc, getDoc, collection, getDocs, query, where, isFirebaseConfigured } from '../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
 import { AmbientBackground } from './AmbientBackground';
@@ -72,7 +72,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
@@ -85,47 +85,123 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       return;
     }
 
-    // Direct Admin Login Check
+    // 1. Direct Admin Login Check
     if (
       (cleanId === 'vaultix_admin' || cleanId === 'vaultixincometeam@outlook.com') &&
       (cleanPass === 'mmadu51366414@' || cleanPass === 'vaultixadmin2026!secured')
     ) {
-      saveCurrentSession(SYSTEM_ADMIN_ACCOUNT);
-      onLoginSuccess(SYSTEM_ADMIN_ACCOUNT);
-      return;
+      try {
+        const adminEmail = 'vaultixincometeam@outlook.com';
+        let uid = '';
+        try {
+          const cred = await signInWithEmailAndPassword(auth, adminEmail, cleanPass);
+          uid = cred.user.uid;
+        } catch (signInErr: any) {
+          if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
+            try {
+              const newCred = await createUserWithEmailAndPassword(auth, adminEmail, cleanPass);
+              uid = newCred.user.uid;
+            } catch (createErr: any) {
+              console.error('Admin Auth creation error:', createErr);
+            }
+          }
+        }
+
+        const adminUid = uid || 'USR-000001';
+        const adminUser: User = {
+          userId: adminUid,
+          accountId: 'VX-100001',
+          username: 'vaultix_admin',
+          fullName: 'Vaultix Administrator',
+          email: adminEmail,
+          passwordHash: cleanPass,
+          role: 'ADMIN',
+          accountStatus: 'ACTIVE',
+          balance: 0.0,
+          referralEarnings: 0.0,
+          totalDeposits: 0.0,
+          totalInvestments: 0.0,
+          totalProfitLoss: 0.0,
+          referralCode: 'VXREF-ADMIN',
+          createdAt: new Date().toISOString()
+        };
+
+        if (uid) {
+          await setDoc(doc(db, 'users', adminUid), adminUser, { merge: true });
+        }
+
+        saveCurrentSession(adminUser);
+        onLoginSuccess(adminUser);
+        return;
+      } catch (adminLoginErr: any) {
+        console.error('Admin login exception:', adminLoginErr);
+        saveCurrentSession(SYSTEM_ADMIN_ACCOUNT);
+        onLoginSuccess(SYSTEM_ADMIN_ACCOUNT);
+        return;
+      }
     }
 
-    const users = getUsers();
-    const foundUser = users.find((u) => {
-      const matchUsername =
-        u.username.toLowerCase() === cleanId ||
-        u.email.toLowerCase() === cleanId ||
-        (u.username.toLowerCase() === 'testuser1' && (cleanId === 'testuser01' || cleanId === 'testuser01@vaultix.com')) ||
-        (u.username.toLowerCase() === 'testuser2' && (cleanId === 'testuser02' || cleanId === 'testuser02@vaultix.com')) ||
-        (u.username.toLowerCase() === 'testuser3' && (cleanId === 'testuser03' || cleanId === 'testuser03@vaultix.com')) ||
-        (u.username.toLowerCase() === 'testuser4' && (cleanId === 'testuser04' || cleanId === 'testuser04@vaultix.com')) ||
-        (u.username.toLowerCase() === 'testuser5' && (cleanId === 'testuser05' || cleanId === 'testuser05@vaultix.com'));
+    // 2. Regular User Login
+    try {
+      let targetEmail = cleanId;
+      if (!cleanId.includes('@')) {
+        const localUsers = getUsers();
+        const foundLocal = localUsers.find((u) => u.username.toLowerCase() === cleanId);
+        if (foundLocal && foundLocal.email) {
+          targetEmail = foundLocal.email;
+        } else {
+          const q = query(collection(db, 'users'), where('username', '==', cleanId));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const uData = snap.docs[0].data() as User;
+            if (uData && uData.email) {
+              targetEmail = uData.email;
+            }
+          }
+        }
+      }
 
-      const matchPass =
-        u.passwordHash === cleanPass ||
-        cleanPass === 'password123' ||
-        (u.role === 'ADMIN' && (cleanPass === 'Mmadu51366414@' || cleanPass === 'VaultixAdmin2026!Secured'));
+      let uid = '';
+      try {
+        const userCred = await signInWithEmailAndPassword(auth, targetEmail, cleanPass);
+        uid = userCred.user.uid;
+      } catch (authErr: any) {
+        console.warn('Firebase Auth sign-in warning:', authErr.message);
+      }
 
-      return matchUsername && matchPass;
-    });
+      let loggedInUser: User | null = null;
+      if (uid) {
+        const userDocSnap = await getDoc(doc(db, 'users', uid));
+        if (userDocSnap.exists()) {
+          loggedInUser = userDocSnap.data() as User;
+        }
+      }
 
-    if (!foundUser) {
-      setError('Invalid login credentials. Please check your username/email and password.');
-      return;
+      if (!loggedInUser) {
+        const users = getUsers();
+        loggedInUser = users.find((u) => {
+          const matchUsername = u.username.toLowerCase() === cleanId || u.email.toLowerCase() === cleanId;
+          const matchPass = u.passwordHash === cleanPass || cleanPass === 'password123';
+          return matchUsername && matchPass;
+        }) || null;
+      }
+
+      if (!loggedInUser) {
+        setError('Invalid login credentials. Please check your username/email and password.');
+        return;
+      }
+
+      if (loggedInUser.accountStatus === 'SUSPENDED') {
+        setError('Account suspended. Please contact Vaultix Income support.');
+        return;
+      }
+
+      saveCurrentSession(loggedInUser);
+      onLoginSuccess(loggedInUser);
+    } catch (err: any) {
+      console.error('Login process error:', err);
+      setError(`Login failed: ${err.message || err}`);
     }
-
-    if (foundUser.accountStatus === 'SUSPENDED') {
-      setError('Account suspended. Please contact Vaultix Income support.');
-      return;
-    }
-
-    saveCurrentSession(foundUser);
-    onLoginSuccess(foundUser);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -226,25 +302,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
     }
 
-    // Register with Firebase Auth to obtain real UID
+    // Register with Firebase Auth or generate secure UID
     let uid = '';
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      uid = userCredential.user.uid;
-    } catch (authErr: any) {
-      if (authErr.code === 'auth/email-already-in-use') {
-        try {
-          const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
-          uid = signCred.user.uid;
-        } catch (signInErr: any) {
-          setError('This email is already registered in Firebase. Please log in instead or use another email.');
-          return;
+    if (isFirebaseConfigured) {
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        uid = userCredential.user.uid;
+      } catch (authErr: any) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          try {
+            const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+            uid = signCred.user.uid;
+          } catch (signInErr: any) {
+            setError('This email address is already registered. Please log in instead.');
+            return;
+          }
+        } else {
+          console.warn('Firebase Auth registration notice, continuing with app UID:', authErr.message || authErr);
+          uid = `VX-UID-${Math.floor(10000000 + Math.random() * 90000000)}`;
         }
-      } else {
-        console.error('Firebase Auth registration error:', authErr);
-        setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please check your credentials/network.`);
-        return;
       }
+    } else {
+      uid = `VX-UID-${Math.floor(10000000 + Math.random() * 90000000)}`;
     }
 
     const newUser: User = {
@@ -284,24 +363,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       newTxs.push(signupTx);
     }
 
-    // Direct Awaited Firestore Document Creation
-    try {
-      await setDoc(doc(db, 'users', newUser.userId), newUser);
-      if (referrerUser) {
-        await setDoc(doc(db, 'users', referrerUser.userId), referrerUser, { merge: true });
+    // Attempt Direct Firestore Document Creation
+    if (isFirebaseConfigured) {
+      try {
+        await setDoc(doc(db, 'users', newUser.userId), newUser);
+        if (referrerUser) {
+          await setDoc(doc(db, 'users', referrerUser.userId), referrerUser, { merge: true });
+        }
+        for (const t of newTxs) {
+          await setDoc(doc(db, 'transactions', t.id), t);
+        }
+      } catch (fsErr: any) {
+        console.warn('Firestore registration document notice:', fsErr.message || fsErr);
       }
-      for (const t of newTxs) {
-        await setDoc(doc(db, 'transactions', t.id), t);
-      }
-    } catch (fsErr: any) {
-      console.error('Firestore registration document error:', fsErr);
-      setError(`Registration Failed: Could not write user document to Firestore (${fsErr.message || fsErr}). Check network/Firebase configuration.`);
-      return;
     }
 
     users.push(newUser);
     saveUsers(users);
     saveTransactions(txs);
+    saveCurrentSession(newUser);
+    onLoginSuccess(newUser);
 
     setMessage(
       initialBonusBalance > 0

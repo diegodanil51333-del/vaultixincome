@@ -5,9 +5,17 @@ import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 
 const metaEnv = (import.meta as unknown as { env: Record<string, string> }).env || {};
 
+const rawApiKey = metaEnv.VITE_FIREBASE_API_KEY || "";
+export const isFirebaseConfigured = Boolean(
+  rawApiKey &&
+  rawApiKey.length > 20 &&
+  !rawApiKey.includes("VaultixProductionKey") &&
+  !rawApiKey.includes("placeholder")
+);
+
 // Standard Firebase Production Applet Configuration
 const firebaseConfig = {
-  apiKey: metaEnv.VITE_FIREBASE_API_KEY || "AIzaSyD-VaultixProductionKey2026",
+  apiKey: rawApiKey || "AIzaSyD-VaultixProductionKey2026",
   authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "vaultixincome.firebaseapp.com",
   projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || "vaultixincome",
   storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "vaultixincome.appspot.com",

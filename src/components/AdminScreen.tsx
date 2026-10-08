@@ -5,7 +5,7 @@ import {
   cancelDepositTransaction, approveWithdrawalTransaction, cancelWithdrawalTransaction,
   getAuditLogs, saveAuditLogs, getWallets, saveWallets, getReferralConfig, saveReferralConfig, getPlans, savePlans
 } from '../db';
-import { db, collection, getDocs } from '../firebase';
+import { db, collection, onSnapshot } from '../firebase';
 import { ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, ArrowUpRight, Layers, Sliders, Activity, RefreshCw } from 'lucide-react';
 import { TransactionReceiptModal } from './TransactionReceiptModal';
 
@@ -35,58 +35,6 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // INSTANT REALTIME DATA REVALIDATION ENGINE FOR ADMIN OVERVIEW
-  useEffect(() => {
-    fetchFromFirestore();
-    refreshData();
-    const interval = setInterval(() => {
-      refreshData();
-    }, 2000);
-
-    const handleUpdate = () => refreshData();
-    window.addEventListener('vaultix_users_updated', handleUpdate);
-    window.addEventListener('vaultix_txs_updated', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('vaultix_users_updated', handleUpdate);
-      window.removeEventListener('vaultix_txs_updated', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
-    };
-  }, []);
-
-  const fetchFromFirestore = async () => {
-    try {
-      const [userSnap, txSnap] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'transactions'))
-      ]);
-
-      const fetchedUsers: User[] = [];
-      userSnap.forEach((doc) => {
-        const u = doc.data() as User;
-        if (u && u.userId) fetchedUsers.push(u);
-      });
-
-      const fetchedTxs: Transaction[] = [];
-      txSnap.forEach((doc) => {
-        const t = doc.data() as Transaction;
-        if (t && t.id) fetchedTxs.push(t);
-      });
-
-      if (fetchedUsers.length > 0) {
-        saveUsers(fetchedUsers);
-      }
-      if (fetchedTxs.length > 0) {
-        saveTransactions(fetchedTxs);
-      }
-      refreshData();
-    } catch (err: any) {
-      console.error('Admin direct Firestore fetch error:', err);
-    }
-  };
-
   const refreshData = () => {
     setUsers(getUsers());
     setTransactions(getTransactions());
@@ -95,6 +43,66 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     setPlans(getPlans());
     setAuditLogs(getAuditLogs());
   };
+
+  // REALTIME FIRESTORE DIRECT SNAPSHOT LISTENER & EVENT SYNC
+  useEffect(() => {
+    refreshData();
+
+    const handleUpdate = () => refreshData();
+    window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    // 1. Subscribe to Firestore Users collection in real time
+    const unsubscribeUsers = onSnapshot(
+      collection(db, 'users'),
+      (snapshot) => {
+        const fetchedUsers: User[] = [];
+        snapshot.forEach((docSnap) => {
+          const u = docSnap.data() as User;
+          if (u && u.userId) {
+            fetchedUsers.push(u);
+          }
+        });
+        if (fetchedUsers.length > 0) {
+          saveUsers(fetchedUsers);
+        }
+        refreshData();
+      },
+      (err) => {
+        console.error('Admin users snapshot listener error:', err);
+      }
+    );
+
+    // 2. Subscribe to Firestore Transactions collection in real time
+    const unsubscribeTxs = onSnapshot(
+      collection(db, 'transactions'),
+      (snapshot) => {
+        const fetchedTxs: Transaction[] = [];
+        snapshot.forEach((docSnap) => {
+          const t = docSnap.data() as Transaction;
+          if (t && t.id) {
+            fetchedTxs.push(t);
+          }
+        });
+        if (fetchedTxs.length > 0) {
+          saveTransactions(fetchedTxs);
+        }
+        refreshData();
+      },
+      (err) => {
+        console.error('Admin transactions snapshot listener error:', err);
+      }
+    );
+
+    return () => {
+      window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      unsubscribeUsers();
+      unsubscribeTxs();
+    };
+  }, []);
 
   // Filtered Users Search (Username, Email, Account ID)
   const filteredUsers = users.filter((u) => {

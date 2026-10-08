@@ -1,5 +1,6 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 import { db, doc, setDoc, collection, onSnapshot } from './firebase';
+import { fetchAndMergeCloudData, pushStateToCloud } from './cloudSync';
 
 const USERS_KEY = 'vaultix_users_v13';
 const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
@@ -480,13 +481,17 @@ export const SYSTEM_ADMIN_ACCOUNT: User = {
   createdAt: '2026-01-01T00:00:00.000Z'
 };
 
-export const SEED_ACCOUNTS: User[] = [SYSTEM_ADMIN_ACCOUNT];
+export const SEED_ACCOUNTS: User[] = [];
 export const SEED_TRANSACTIONS: Transaction[] = [];
 
 async function syncUsersToFirestore(users: User[]) {
   for (const u of users) {
     if (u.userId) {
-      await setDoc(doc(db, 'users', u.userId), u, { merge: true });
+      try {
+        await setDoc(doc(db, 'users', u.userId), u, { merge: true });
+      } catch (err) {
+        console.error(`Error syncing user ${u.userId} to Firestore:`, err);
+      }
     }
   }
 }
@@ -494,7 +499,11 @@ async function syncUsersToFirestore(users: User[]) {
 async function syncTxsToFirestore(txs: Transaction[]) {
   for (const t of txs) {
     if (t.id) {
-      await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
+      try {
+        await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
+      } catch (err) {
+        console.error(`Error syncing transaction ${t.id} to Firestore:`, err);
+      }
     }
   }
 }
@@ -562,6 +571,7 @@ export function initializeDatabase() {
     localStorage.setItem(PLANS_KEY, JSON.stringify(DEFAULT_INVESTMENT_PLANS));
   }
   initFirestoreListeners();
+  fetchAndMergeCloudData();
 }
 
 // Helper to emit real-time window update events across components and tabs
@@ -609,6 +619,7 @@ export function saveUsers(users: User[]) {
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
   syncUsersToFirestore(merged);
+  pushStateToCloud(merged, getTransactionsLocal());
   emitDataUpdateEvents('users');
 }
 
@@ -628,6 +639,7 @@ export function getTransactions(): Transaction[] {
 export function saveTransactions(txs: Transaction[]) {
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
   syncTxsToFirestore(txs);
+  pushStateToCloud(getUsersLocal(), txs);
   emitDataUpdateEvents('txs');
 }
 
