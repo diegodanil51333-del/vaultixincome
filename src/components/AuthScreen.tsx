@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
 import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, SYSTEM_ADMIN_ACCOUNT } from '../db';
-import { auth, db, doc, setDoc, getDoc, collection, getDocs, query, where, isFirebaseConfigured } from '../firebase';
+import { auth, db, doc, setDoc, getDoc, collection, getDocs, query, where, isFirebaseConfigured, cleanFirestoreData } from '../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
 import { AmbientBackground } from './AmbientBackground';
@@ -258,9 +258,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
     if (referralCodeInput.trim()) {
       const codeClean = referralCodeInput.trim().toUpperCase();
-      referrerUser = users.find((u) => u.referralCode.toUpperCase() === codeClean || u.username.toUpperCase() === codeClean);
+      
+      // 1. First check local cached users
+      referrerUser = users.find((u) => u.referralCode?.toUpperCase() === codeClean || u.username?.toUpperCase() === codeClean);
 
-      // Special admin testing code handling
+      // 2. If not found locally, query Cloud Firestore for referrer user
+      if (!referrerUser) {
+        try {
+          const qRefCode = query(collection(db, 'users'), where('referralCode', '==', codeClean));
+          const snapRefCode = await getDocs(qRefCode);
+          if (!snapRefCode.empty) {
+            referrerUser = snapRefCode.docs[0].data() as User;
+          } else {
+            const qRefUser = query(collection(db, 'users'), where('username', '==', referralCodeInput.trim().toLowerCase()));
+            const snapRefUser = await getDocs(qRefUser);
+            if (!snapRefUser.empty) {
+              referrerUser = snapRefUser.docs[0].data() as User;
+            }
+          }
+        } catch (queryErr) {
+          console.warn('Firestore referral lookup check:', queryErr);
+        }
+      }
+
+      // 3. Special admin testing code handling
       if (!referrerUser && codeClean === 'VXREF-ADMIN') {
         referrerUser = users.find((u) => u.role === 'ADMIN') || {
           userId: 'USR-000001',
@@ -305,7 +326,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         // Newly registered user receives $5.00 referral bonus in Bonus Balance
         initialBonusBalance = 5.0;
       } else {
-        setError('Invalid referral code provided. Registration cancelled.');
+        setError(`Invalid referral code "${referralCodeInput.trim()}" provided. Registration cancelled.`);
         return;
       }
     }
@@ -337,7 +358,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       username: username.trim(),
       fullName: fullName.trim(),
       email: email.trim(),
-      phoneNumber: phoneNumber.trim() || undefined,
       passwordHash: password,
       role: 'USER',
       accountStatus: 'ACTIVE',
@@ -348,10 +368,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       totalInvestments: 0.0,
       totalProfitLoss: 0.0,
       referralCode: `VXREF-${Math.floor(1000 + Math.random() * 9000)}`,
-      referredByUsername: referrerUsername,
-      referredByDisplayName: referrerDisplayName,
       createdAt: new Date().toISOString()
     };
+
+    if (phoneNumber.trim()) {
+      newUser.phoneNumber = phoneNumber.trim();
+    }
+    if (referrerUsername) {
+      newUser.referredByUsername = referrerUsername;
+    }
+    if (referrerDisplayName) {
+      newUser.referredByDisplayName = referrerDisplayName;
+    }
 
     if (initialBonusBalance > 0) {
       const signupTx: Transaction = {
@@ -368,14 +396,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       newTxs.push(signupTx);
     }
 
-    // MANDATORY Direct Awaited Firestore Document Creation
+    // MANDATORY Direct Awaited Firestore Document Creation with Sanitization
     try {
-      await setDoc(doc(db, 'users', newUser.userId), newUser);
+      await setDoc(doc(db, 'users', newUser.userId), cleanFirestoreData(newUser));
       if (referrerUser) {
-        await setDoc(doc(db, 'users', referrerUser.userId), referrerUser, { merge: true });
+        await setDoc(doc(db, 'users', referrerUser.userId), cleanFirestoreData(referrerUser), { merge: true });
       }
       for (const t of newTxs) {
-        await setDoc(doc(db, 'transactions', t.id), t);
+        await setDoc(doc(db, 'transactions', t.id), cleanFirestoreData(t));
       }
     } catch (fsErr: any) {
       console.error('Firestore registration document error:', fsErr);

@@ -1,5 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
-import { db, doc, setDoc, collection, onSnapshot } from './firebase';
+import { db, doc, setDoc, collection, onSnapshot, cleanFirestoreData } from './firebase';
 
 const USERS_KEY = 'vaultix_users_v13';
 const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
@@ -487,7 +487,7 @@ async function syncUsersToFirestore(users: User[]) {
   for (const u of users) {
     if (u.userId) {
       try {
-        await setDoc(doc(db, 'users', u.userId), u, { merge: true });
+        await setDoc(doc(db, 'users', u.userId), cleanFirestoreData(u), { merge: true });
       } catch (err) {
         console.error(`Error syncing user ${u.userId} to Firestore:`, err);
       }
@@ -499,7 +499,7 @@ async function syncTxsToFirestore(txs: Transaction[]) {
   for (const t of txs) {
     if (t.id) {
       try {
-        await setDoc(doc(db, 'transactions', t.id), t, { merge: true });
+        await setDoc(doc(db, 'transactions', t.id), cleanFirestoreData(t), { merge: true });
       } catch (err) {
         console.error(`Error syncing transaction ${t.id} to Firestore:`, err);
       }
@@ -917,7 +917,7 @@ export async function submitDeposit(user: User, amount: number, currency: string
   };
 
   // MANDATORY: Await real Cloud Database write
-  await setDoc(doc(db, 'transactions', newTx.id), newTx);
+  await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
 
   const txs = getTransactionsLocal();
   txs.unshift(newTx);
@@ -986,10 +986,10 @@ export async function approveDepositTransaction(adminUser: User, transactionId: 
   }
 
   // MANDATORY: Await direct Cloud Database writes
-  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
-  await setDoc(doc(db, 'users', targetUser.userId), targetUser);
+  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
+  await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
   if (bonusTx) {
-    await setDoc(doc(db, 'transactions', bonusTx.id), bonusTx);
+    await setDoc(doc(db, 'transactions', bonusTx.id), cleanFirestoreData(bonusTx));
     txs.unshift(bonusTx);
   }
 

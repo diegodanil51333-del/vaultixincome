@@ -34,6 +34,24 @@ setPersistence(auth, browserLocalPersistence).catch(() => {
   // Graceful fallback if third-party cookies blocked
 });
 
+/**
+ * Recursively removes any keys with `undefined` values from an object,
+ * ensuring Firestore setDoc / updateDoc operations never fail due to `undefined` values.
+ */
+export function cleanFirestoreData<T extends Record<string, any>>(data: T): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        cleaned[key] = cleanFirestoreData(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
+}
+
 export {
   setPersistence, browserLocalPersistence, onAuthStateChanged,
   doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, where, updateDoc, limit,
