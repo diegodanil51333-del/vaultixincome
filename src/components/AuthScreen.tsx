@@ -127,7 +127,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         };
 
         if (uid) {
-          await setDoc(doc(db, 'users', adminUid), adminUser, { merge: true });
+          await setDoc(doc(db, 'users', adminUid), cleanFirestoreData(adminUser), { merge: true });
         }
 
         saveCurrentSession(adminUser);

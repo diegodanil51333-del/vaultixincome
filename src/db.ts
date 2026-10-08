@@ -1043,7 +1043,7 @@ export async function rejectDepositTransaction(adminUser: User, transactionId: s
   targetTx.note = `Deposit ${targetTx.id} cancelled.`;
 
   // MANDATORY: Await Cloud Database write
-  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
 
   txs[txIdx] = targetTx;
   saveTransactions(txs);
@@ -1087,7 +1087,7 @@ export async function cancelOwnPendingDeposit(user: User, transactionId: string)
   targetTx.note = `Deposit request #${transactionId} cancelled by user.`;
 
   // MANDATORY: Await Cloud Database write
-  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
 
   txs[txIdx] = targetTx;
   saveTransactions(txs);
@@ -1159,8 +1159,8 @@ export async function submitWithdrawalRequest(
   };
 
   // MANDATORY: Await Cloud Database writes
-  await setDoc(doc(db, 'users', targetUser.userId), targetUser);
-  await setDoc(doc(db, 'transactions', newTx.id), newTx);
+  await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
+  await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
 
   users[uIdx] = targetUser;
   saveUsers(users);
@@ -1214,8 +1214,8 @@ export async function submitBonusWithdrawalRequest(
   };
 
   // MANDATORY: Await Cloud Database writes
-  await setDoc(doc(db, 'users', targetUser.userId), targetUser);
-  await setDoc(doc(db, 'transactions', newTx.id), newTx);
+  await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
+  await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
 
   users[uIdx] = targetUser;
   saveUsers(users);
@@ -1250,7 +1250,7 @@ export async function approveWithdrawalTransaction(adminUser: User, transactionI
   targetTx.note = `Withdrawal ${targetTx.id} approved and processed!`;
 
   // MANDATORY: Await Cloud Database write
-  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
 
   txs[txIdx] = targetTx;
   saveTransactions(txs);
@@ -1310,9 +1310,9 @@ export async function cancelWithdrawalTransaction(adminUser: User, transactionId
   }
 
   // MANDATORY: Await Cloud Database writes
-  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
   if (targetUser) {
-    await setDoc(doc(db, 'users', targetUser.userId), targetUser);
+    await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
     users[uIdx] = targetUser;
     saveUsers(users);
 
