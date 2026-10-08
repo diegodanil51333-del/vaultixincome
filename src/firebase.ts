@@ -15,12 +15,12 @@ export const isFirebaseConfigured = Boolean(
 
 // Standard Firebase Production Applet Configuration
 const firebaseConfig = {
-  apiKey: rawApiKey || "AIzaSyD-VaultixProductionKey2026",
+  apiKey: rawApiKey,
   authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "vaultixincome.firebaseapp.com",
   projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || "vaultixincome",
-  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "vaultixincome.appspot.com",
-  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "582926363569",
-  appId: metaEnv.VITE_FIREBASE_APP_ID || "1:582926363569:web:a1b2c3d4e5f6g7h8"
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "vaultixincome.firebasestorage.app",
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "158283505064",
+  appId: metaEnv.VITE_FIREBASE_APP_ID || "1:158283505064:web:d9997660ea2d085386919d"
 };
 
 // Initialize Firebase App Instance SAFELY without duplicate initializations
