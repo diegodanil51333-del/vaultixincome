@@ -59,7 +59,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     }
   };
 
-  const handleSubmitDepositRequest = (e: React.FormEvent) => {
+  const handleSubmitDepositRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setDepError(null);
     setDepSuccess(null);
@@ -71,7 +71,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     }
 
     try {
-      const tx = submitDeposit(user, amt, selectedWallet.symbol);
+      const tx = await submitDeposit(user, amt, selectedWallet.symbol);
       setDepositAmount('');
       setDepSuccess(`Deposit request #${tx.id} of ${amt} ${selectedWallet.symbol} submitted! Status: PENDING`);
       onUserUpdated({ ...user });
@@ -81,7 +81,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
   };
 
   // REQUIREMENT 8: USER WITHDRAWAL SUBMISSION
-  const handleWithdrawal = (e: React.FormEvent) => {
+  const handleWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
     setWError(null);
     setWSuccess(null);
@@ -104,7 +104,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     }
 
     try {
-      const tx = submitWithdrawalRequest(user, amount, selectedSymbol, withdrawAddress.trim(), withdrawNetwork);
+      const tx = await submitWithdrawalRequest(user, amount, selectedSymbol, withdrawAddress.trim(), withdrawNetwork);
       
       // Fetch latest updated user object from DB
       const freshUser = getUsers().find((u) => u.userId === user.userId) || user;

@@ -150,13 +150,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         if (foundLocal && foundLocal.email) {
           targetEmail = foundLocal.email;
         } else {
-          const q = query(collection(db, 'users'), where('username', '==', cleanId));
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            const uData = snap.docs[0].data() as User;
-            if (uData && uData.email) {
-              targetEmail = uData.email;
+          try {
+            const q = query(collection(db, 'users'), where('username', '==', cleanId));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              const uData = snap.docs[0].data() as User;
+              if (uData && uData.email) {
+                targetEmail = uData.email;
+              }
             }
+          } catch {
+            // Ignore offline / unconfigured query error
           }
         }
       }
@@ -171,9 +175,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
       let loggedInUser: User | null = null;
       if (uid) {
-        const userDocSnap = await getDoc(doc(db, 'users', uid));
-        if (userDocSnap.exists()) {
-          loggedInUser = userDocSnap.data() as User;
+        try {
+          const userDocSnap = await getDoc(doc(db, 'users', uid));
+          if (userDocSnap.exists()) {
+            loggedInUser = userDocSnap.data() as User;
+          }
+        } catch {
+          // Ignore Firestore doc read error
         }
       }
 
@@ -302,7 +310,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
     }
 
-    // Register strictly with Firebase Auth to obtain real UID
+    // Strictly register with Firebase Auth to obtain real UID from Cloud
     let uid = '';
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -313,12 +321,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
           uid = signCred.user.uid;
         } catch (signInErr: any) {
-          setError('This email address is already registered. Please log in instead.');
+          setError('This email address is already registered in Firebase. Please log in instead.');
           return;
         }
       } else {
         console.error('Firebase Auth registration error:', authErr);
-        setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please verify your environment VITE_FIREBASE_API_KEY.`);
+        setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please verify VITE_FIREBASE_API_KEY on Vercel.`);
         return;
       }
     }
@@ -360,7 +368,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       newTxs.push(signupTx);
     }
 
-    // Direct Awaited Firestore Document Creation
+    // MANDATORY Direct Awaited Firestore Document Creation
     try {
       await setDoc(doc(db, 'users', newUser.userId), newUser);
       if (referrerUser) {
@@ -371,7 +379,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
     } catch (fsErr: any) {
       console.error('Firestore registration document error:', fsErr);
-      setError(`Registration Failed: Could not write user document to Firestore (${fsErr.message || fsErr}). Check network/Firebase configuration.`);
+      setError(`Registration Failed: Could not write user document to Cloud Database (${fsErr.message || fsErr}). Operation cancelled.`);
       return;
     }
 

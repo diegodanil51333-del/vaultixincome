@@ -899,7 +899,7 @@ export function processMaturedInvestments() {
 
 // --- SERVER-SIDE FINANCIAL TRANSACTIONS ---
 
-export function submitDeposit(user: User, amount: number, currency: string): Transaction {
+export async function submitDeposit(user: User, amount: number, currency: string): Promise<Transaction> {
   if (amount <= 0) {
     throw new Error('Deposit amount must be greater than zero.');
   }
@@ -916,13 +916,16 @@ export function submitDeposit(user: User, amount: number, currency: string): Tra
     note: `Deposit request #${txId} of ${amount} ${currency} submitted! Status: PENDING`
   };
 
+  // MANDATORY: Await real Cloud Database write
+  await setDoc(doc(db, 'transactions', newTx.id), newTx);
+
   const txs = getTransactionsLocal();
   txs.unshift(newTx);
   saveTransactions(txs);
   return newTx;
 }
 
-export function approveDepositTransaction(adminUser: User, transactionId: string): { user: User; tx: Transaction } {
+export async function approveDepositTransaction(adminUser: User, transactionId: string): Promise<{ user: User; tx: Transaction }> {
   if (adminUser.role !== 'ADMIN') {
     throw new Error('UNAUTHORIZED: Admin privileges required to approve deposits.');
   }
@@ -934,7 +937,7 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
     throw new Error('Transaction not found.');
   }
 
-  const targetTx = txs[txIdx];
+  const targetTx = { ...txs[txIdx] };
 
   if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
@@ -943,7 +946,6 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
   targetTx.status = 'APPROVED';
   targetTx.processedAt = new Date().toISOString();
   targetTx.note = `Deposit ${targetTx.id} approved! Credited $${targetTx.amount.toFixed(2)}.`;
-  txs[txIdx] = targetTx;
 
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
@@ -951,13 +953,14 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
     throw new Error('Target user account not found.');
   }
 
-  const targetUser = users[uIdx];
+  const targetUser = { ...users[uIdx] };
   const oldBalance = targetUser.balance;
 
   // Credit deposit principal
   targetUser.balance += targetTx.amount;
   targetUser.totalDeposits += targetTx.amount;
 
+  let bonusTx: Transaction | null = null;
   // Check First Deposit Bonus Eligibility (Granted exactly ONCE)
   if (!targetUser.hasReceivedFirstDepositBonus) {
     const isReferred = Boolean(targetUser.referredByUsername && targetUser.referredByUsername.trim().length > 0);
@@ -968,8 +971,7 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
       targetUser.balance += bonusAmount;
       targetUser.hasReceivedFirstDepositBonus = true;
 
-      // Record separate bonus transaction for audit
-      const bonusTx: Transaction = {
+      bonusTx = {
         id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
         userId: targetUser.userId,
         type: 'FIRST_DEPOSIT_BONUS',
@@ -980,10 +982,18 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
         processedAt: new Date().toISOString(),
         note: `First Deposit Bonus (${bonusPercent}% of $${targetTx.amount.toFixed(2)})`
       };
-      txs.unshift(bonusTx);
     }
   }
 
+  // MANDATORY: Await direct Cloud Database writes
+  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+  await setDoc(doc(db, 'users', targetUser.userId), targetUser);
+  if (bonusTx) {
+    await setDoc(doc(db, 'transactions', bonusTx.id), bonusTx);
+    txs.unshift(bonusTx);
+  }
+
+  txs[txIdx] = targetTx;
   users[uIdx] = targetUser;
   saveUsers(users);
   saveTransactions(txs);
@@ -1010,7 +1020,7 @@ export function approveDepositTransaction(adminUser: User, transactionId: string
   return { user: targetUser, tx: targetTx };
 }
 
-export function rejectDepositTransaction(adminUser: User, transactionId: string, reason?: string): Transaction {
+export async function rejectDepositTransaction(adminUser: User, transactionId: string, reason?: string): Promise<Transaction> {
   if (adminUser.role !== 'ADMIN') {
     throw new Error('UNAUTHORIZED: Admin privileges required.');
   }
@@ -1022,7 +1032,7 @@ export function rejectDepositTransaction(adminUser: User, transactionId: string,
     throw new Error('Transaction not found.');
   }
 
-  const targetTx = txs[txIdx];
+  const targetTx = { ...txs[txIdx] };
 
   if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
@@ -1031,6 +1041,10 @@ export function rejectDepositTransaction(adminUser: User, transactionId: string,
   targetTx.status = 'REJECTED';
   targetTx.processedAt = new Date().toISOString();
   targetTx.note = `Deposit ${targetTx.id} cancelled.`;
+
+  // MANDATORY: Await Cloud Database write
+  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
@@ -1050,11 +1064,11 @@ export function rejectDepositTransaction(adminUser: User, transactionId: string,
   return targetTx;
 }
 
-export function cancelDepositTransaction(adminUser: User, transactionId: string): Transaction {
-  return rejectDepositTransaction(adminUser, transactionId, 'Cancelled');
+export async function cancelDepositTransaction(adminUser: User, transactionId: string): Promise<Transaction> {
+  return await rejectDepositTransaction(adminUser, transactionId, 'Cancelled');
 }
 
-export function cancelOwnPendingDeposit(user: User, transactionId: string): Transaction {
+export async function cancelOwnPendingDeposit(user: User, transactionId: string): Promise<Transaction> {
   const txs = getTransactionsLocal();
   const txIdx = txs.findIndex((t) => t.id === transactionId && t.userId === user.userId);
 
@@ -1062,7 +1076,7 @@ export function cancelOwnPendingDeposit(user: User, transactionId: string): Tran
     throw new Error('Transaction request not found.');
   }
 
-  const targetTx = txs[txIdx];
+  const targetTx = { ...txs[txIdx] };
 
   if (targetTx.status !== 'PENDING') {
     throw new Error('This deposit request is no longer pending and cannot be cancelled.');
@@ -1071,6 +1085,10 @@ export function cancelOwnPendingDeposit(user: User, transactionId: string): Tran
   targetTx.status = 'CANCELLED';
   targetTx.processedAt = new Date().toISOString();
   targetTx.note = `Deposit request #${transactionId} cancelled by user.`;
+
+  // MANDATORY: Await Cloud Database write
+  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
@@ -1095,14 +1113,14 @@ export function getAccruedProfitForInvestment(inv: UserInvestment): number {
   return inv.dailyReturn * elapsedDays;
 }
 
-export function submitWithdrawalRequest(
+export async function submitWithdrawalRequest(
   user: User,
   amount: number,
   currency: string,
   destinationAddress: string,
   destinationNetwork: string,
   investmentId?: string
-): Transaction {
+): Promise<Transaction> {
   if (amount <= 0) {
     throw new Error('Withdrawal amount must be greater than zero.');
   }
@@ -1113,7 +1131,7 @@ export function submitWithdrawalRequest(
     throw new Error('User account not found.');
   }
 
-  const targetUser = users[uIdx];
+  const targetUser = { ...users[uIdx] };
   if (targetUser.balance < amount && !investmentId) {
     throw new Error(`Insufficient funds. Available balance: $${targetUser.balance.toFixed(2)}.`);
   }
@@ -1121,10 +1139,7 @@ export function submitWithdrawalRequest(
   const { fee, netAmount } = calculateWithdrawalFee(amount);
 
   if (!investmentId) {
-    // Deduct requested withdrawal amount upfront from active balance
     targetUser.balance -= amount;
-    users[uIdx] = targetUser;
-    saveUsers(users);
   }
 
   const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -1138,8 +1153,17 @@ export function submitWithdrawalRequest(
     currency: currency,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
+    destinationAddress: destinationAddress,
+    network: destinationNetwork,
     note: `Withdrawal request #${txId} of $${amount.toFixed(2)} (Net: $${netAmount.toFixed(2)} after $${fee.toFixed(2)} fee) submitted! Status: PENDING`
   };
+
+  // MANDATORY: Await Cloud Database writes
+  await setDoc(doc(db, 'users', targetUser.userId), targetUser);
+  await setDoc(doc(db, 'transactions', newTx.id), newTx);
+
+  users[uIdx] = targetUser;
+  saveUsers(users);
 
   const txs = getTransactionsLocal();
   txs.unshift(newTx);
@@ -1149,11 +1173,11 @@ export function submitWithdrawalRequest(
   return newTx;
 }
 
-export function submitBonusWithdrawalRequest(
+export async function submitBonusWithdrawalRequest(
   user: User,
   amount: number,
   destinationAddress: string
-): Transaction {
+): Promise<Transaction> {
   if (amount < 50.0) {
     throw new Error('Minimum bonus balance withdrawal threshold is $50.00.');
   }
@@ -1164,18 +1188,15 @@ export function submitBonusWithdrawalRequest(
     throw new Error('User account not found.');
   }
 
-  const targetUser = users[uIdx];
+  const targetUser = { ...users[uIdx] };
   const bonusBal = targetUser.bonusBalance || targetUser.referralEarnings || 0;
 
   if (bonusBal < amount) {
     throw new Error(`Insufficient Bonus Balance. Available: $${bonusBal.toFixed(2)}.`);
   }
 
-  // Deduct bonus balance upfront and hold in PENDING
   targetUser.bonusBalance = bonusBal - amount;
   targetUser.referralEarnings = Math.max(0, (targetUser.referralEarnings || 0) - amount);
-  users[uIdx] = targetUser;
-  saveUsers(users);
 
   const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
   const newTx: Transaction = {
@@ -1188,8 +1209,16 @@ export function submitBonusWithdrawalRequest(
     currency: 'USD',
     status: 'PENDING',
     timestamp: new Date().toISOString(),
+    destinationAddress: destinationAddress,
     note: `Bonus Wallet Withdrawal Request #${txId} of $${amount.toFixed(2)} ($15 Network Fee Confirmed) -> ${destinationAddress}`
   };
+
+  // MANDATORY: Await Cloud Database writes
+  await setDoc(doc(db, 'users', targetUser.userId), targetUser);
+  await setDoc(doc(db, 'transactions', newTx.id), newTx);
+
+  users[uIdx] = targetUser;
+  saveUsers(users);
 
   const txs = getTransactionsLocal();
   txs.unshift(newTx);
@@ -1199,7 +1228,7 @@ export function submitBonusWithdrawalRequest(
   return newTx;
 }
 
-export function approveWithdrawalTransaction(adminUser: User, transactionId: string): { user: User; tx: Transaction } {
+export async function approveWithdrawalTransaction(adminUser: User, transactionId: string): Promise<{ user: User; tx: Transaction }> {
   if (adminUser.role !== 'ADMIN') {
     throw new Error('UNAUTHORIZED: Admin privileges required.');
   }
@@ -1211,7 +1240,7 @@ export function approveWithdrawalTransaction(adminUser: User, transactionId: str
     throw new Error('Transaction not found.');
   }
 
-  const targetTx = txs[txIdx];
+  const targetTx = { ...txs[txIdx] };
   if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
   }
@@ -1219,6 +1248,10 @@ export function approveWithdrawalTransaction(adminUser: User, transactionId: str
   targetTx.status = 'APPROVED';
   targetTx.processedAt = new Date().toISOString();
   targetTx.note = `Withdrawal ${targetTx.id} approved and processed!`;
+
+  // MANDATORY: Await Cloud Database write
+  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+
   txs[txIdx] = targetTx;
   saveTransactions(txs);
 
@@ -1240,7 +1273,7 @@ export function approveWithdrawalTransaction(adminUser: User, transactionId: str
   return { user: targetUser, tx: targetTx };
 }
 
-export function cancelWithdrawalTransaction(adminUser: User, transactionId: string, reason?: string): { user: User; tx: Transaction } {
+export async function cancelWithdrawalTransaction(adminUser: User, transactionId: string, reason?: string): Promise<{ user: User; tx: Transaction }> {
   if (adminUser.role !== 'ADMIN') {
     throw new Error('UNAUTHORIZED: Admin privileges required.');
   }
@@ -1252,7 +1285,7 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
     throw new Error('Transaction not found.');
   }
 
-  const targetTx = txs[txIdx];
+  const targetTx = { ...txs[txIdx] };
   if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
   }
@@ -1260,13 +1293,12 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
   targetTx.status = 'REJECTED';
   targetTx.processedAt = new Date().toISOString();
   targetTx.note = `Withdrawal ${targetTx.id} cancelled. Principal refunded.`;
-  txs[txIdx] = targetTx;
 
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
-  let targetUser = users[uIdx];
+  let targetUser = uIdx !== -1 ? { ...users[uIdx] } : null;
 
-  if (uIdx !== -1) {
+  if (targetUser) {
     if (targetTx.type === 'BONUS_WITHDRAWAL') {
       targetUser.bonusBalance = (targetUser.bonusBalance || 0) + targetTx.amount;
       targetUser.referralEarnings = (targetUser.referralEarnings || 0) + targetTx.amount;
@@ -1275,6 +1307,12 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
       targetUser.balance += targetTx.amount;
       targetTx.note = `Withdrawal ${targetTx.id} cancelled. $${targetTx.amount.toFixed(2)} refunded to Active Balance.`;
     }
+  }
+
+  // MANDATORY: Await Cloud Database writes
+  await setDoc(doc(db, 'transactions', targetTx.id), targetTx);
+  if (targetUser) {
+    await setDoc(doc(db, 'users', targetUser.userId), targetUser);
     users[uIdx] = targetUser;
     saveUsers(users);
 
@@ -1284,6 +1322,7 @@ export function cancelWithdrawalTransaction(adminUser: User, transactionId: stri
     }
   }
 
+  txs[txIdx] = targetTx;
   saveTransactions(txs);
 
   const logs = getAuditLogs();

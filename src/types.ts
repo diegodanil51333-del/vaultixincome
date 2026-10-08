@@ -76,11 +76,14 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   feeAmount?: number;
+  fee?: number;
   netAmount?: number;
   currency: string;
   status: TransactionStatus;
   timestamp: string;
   processedAt?: string;
+  destinationAddress?: string;
+  network?: string;
   note: string;
 }
 

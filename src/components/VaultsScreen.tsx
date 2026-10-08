@@ -61,7 +61,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
     }
   };
 
-  const handleExecuteInvestmentWithdrawal = (e: React.FormEvent) => {
+  const handleExecuteInvestmentWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
     setInvWError(null);
     setInvWSuccess(null);
@@ -80,7 +80,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
       const accruedProfit = getAccruedProfitForInvestment(selectedInvForWithdraw);
       const totalAmount = selectedInvForWithdraw.amount + accruedProfit;
 
-      const tx = submitWithdrawalRequest(
+      const tx = await submitWithdrawalRequest(
         user,
         totalAmount,
         selectedInvForWithdraw.asset,

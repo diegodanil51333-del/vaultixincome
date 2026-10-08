@@ -65,7 +65,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     setWithdrawStep('SUBMIT_ADDRESS');
   };
 
-  const handleExecuteReferralWithdrawal = (e: React.FormEvent) => {
+  const handleExecuteReferralWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
     setWError(null);
     setWSuccess(null);
@@ -81,7 +81,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     }
 
     try {
-      const tx = submitBonusWithdrawalRequest(user, withdrawAmt, destinationAddress.trim());
+      const tx = await submitBonusWithdrawalRequest(user, withdrawAmt, destinationAddress.trim());
       const freshUser = getUsers().find((u) => u.userId === user.userId) || user;
       onUserUpdated(freshUser);
       setWSuccess(`Bonus Wallet Withdrawal request #${tx.id} of $${withdrawAmt.toFixed(2)} submitted! Status: PENDING ($15 Network Fee Confirmed)`);

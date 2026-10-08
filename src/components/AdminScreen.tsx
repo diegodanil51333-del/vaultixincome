@@ -121,10 +121,10 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const pendingWithdrawals = transactions.filter((t) => t.type === 'WITHDRAWAL' && t.status === 'PENDING');
 
   // Deposit Actions
-  const handleApproveDeposit = (txId: string) => {
+  const handleApproveDeposit = async (txId: string) => {
     try {
       setError(null);
-      const res = approveDepositTransaction(currentAdmin, txId);
+      const res = await approveDepositTransaction(currentAdmin, txId);
       setMsg(`Deposit ${txId} approved! Credited $${res.tx.amount.toFixed(2)} to @${res.user.username}.`);
       refreshData();
     } catch (err: any) {
@@ -132,10 +132,10 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     }
   };
 
-  const handleRejectDeposit = (txId: string) => {
+  const handleRejectDeposit = async (txId: string) => {
     try {
       setError(null);
-      rejectDepositTransaction(currentAdmin, txId, rejectReason || 'Admin Rejection');
+      await rejectDepositTransaction(currentAdmin, txId, rejectReason || 'Admin Rejection');
       setMsg(`Deposit ${txId} rejected.`);
       setRejectReason('');
       refreshData();
@@ -144,10 +144,10 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     }
   };
 
-  const handleCancelDeposit = (txId: string) => {
+  const handleCancelDeposit = async (txId: string) => {
     try {
       setError(null);
-      cancelDepositTransaction(currentAdmin, txId);
+      await cancelDepositTransaction(currentAdmin, txId);
       setMsg(`Deposit ${txId} cancelled.`);
       refreshData();
     } catch (err: any) {
@@ -156,10 +156,10 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   };
 
   // Withdrawal Actions
-  const handleApproveWithdrawal = (txId: string) => {
+  const handleApproveWithdrawal = async (txId: string) => {
     try {
       setError(null);
-      const res = approveWithdrawalTransaction(currentAdmin, txId);
+      const res = await approveWithdrawalTransaction(currentAdmin, txId);
       setMsg(`Withdrawal ${txId} approved and completed for @${res.user.username}!`);
       refreshData();
     } catch (err: any) {
@@ -167,10 +167,10 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     }
   };
 
-  const handleCancelWithdrawal = (txId: string) => {
+  const handleCancelWithdrawal = async (txId: string) => {
     try {
       setError(null);
-      const res = cancelWithdrawalTransaction(currentAdmin, txId, rejectReason || 'Administrative cancellation');
+      const res = await cancelWithdrawalTransaction(currentAdmin, txId, rejectReason || 'Administrative cancellation');
       setMsg(`Withdrawal ${txId} cancelled. Refunded $${res.tx.amount.toFixed(2)} back to @${res.user.username}.`);
       setRejectReason('');
       refreshData();
