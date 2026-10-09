@@ -41,6 +41,9 @@ setPersistence(auth, browserLocalPersistence).catch(() => {
 export function cleanFirestoreData<T extends Record<string, any>>(data: T): Record<string, any> {
   const cleaned: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
+    if (key === 'passwordHash' || key === 'password') {
+      continue;
+    }
     if (value !== undefined) {
       if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
         cleaned[key] = cleanFirestoreData(value);

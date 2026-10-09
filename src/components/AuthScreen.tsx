@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
 import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, SYSTEM_ADMIN_ACCOUNT } from '../db';
 import { auth, db, doc, setDoc, getDoc, collection, getDocs, query, where, isFirebaseConfigured, cleanFirestoreData } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
 import { AmbientBackground } from './AmbientBackground';
 
@@ -77,7 +77,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     setError(null);
     setMessage(null);
 
-    const cleanId = loginIdentifier.trim().toLowerCase();
+    const cleanId = loginIdentifier.trim();
     const cleanPass = loginPassword.trim();
 
     if (!cleanId || !cleanPass) {
@@ -85,80 +85,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       return;
     }
 
-    // 1. Direct Admin Login Check
-    const isPassAdmin =
-      cleanPass === 'mmadu51366414@' ||
-      cleanPass === 'Mmadu51366414@' ||
-      cleanPass.toLowerCase() === 'mmadu51366414@' ||
-      cleanPass === 'vaultixadmin2026!secured';
-
-    if (
-      (cleanId === 'vaultix_admin' || cleanId === 'vaultixincometeam@outlook.com' || cleanId === 'vaultix_admin@vaultix.com') &&
-      isPassAdmin
-    ) {
-      try {
-        const adminEmail = 'vaultixincometeam@outlook.com';
-        const adminAuthPass = 'Mmadu51366414@';
-        let uid = '';
-        try {
-          const cred = await signInWithEmailAndPassword(auth, adminEmail, adminAuthPass);
-          uid = cred.user.uid;
-        } catch (signInErr: any) {
-          try {
-            const cred2 = await signInWithEmailAndPassword(auth, adminEmail, cleanPass);
-            uid = cred2.user.uid;
-          } catch (signInErr2: any) {
-            try {
-              const newCred = await createUserWithEmailAndPassword(auth, adminEmail, adminAuthPass);
-              uid = newCred.user.uid;
-            } catch (createErr: any) {
-              console.error('Admin Auth creation error:', createErr);
-            }
-          }
-        }
-
-        const adminUid = uid || 'USR-000001';
-        const adminUser: User = {
-          userId: adminUid,
-          accountId: 'VX-100001',
-          username: 'vaultix_admin',
-          fullName: 'Vaultix Administrator',
-          email: adminEmail,
-          passwordHash: cleanPass,
-          role: 'ADMIN',
-          accountStatus: 'ACTIVE',
-          balance: 0.0,
-          referralEarnings: 0.0,
-          totalDeposits: 0.0,
-          totalInvestments: 0.0,
-          totalProfitLoss: 0.0,
-          referralCode: 'VXREF-ADMIN',
-          createdAt: new Date().toISOString()
-        };
-
-        if (uid) {
-          await setDoc(doc(db, 'users', adminUid), cleanFirestoreData(adminUser), { merge: true });
-        }
-
-        saveCurrentSession(adminUser);
-        onLoginSuccess(adminUser);
-        return;
-      } catch (adminLoginErr: any) {
-        console.error('Admin login exception:', adminLoginErr);
-        saveCurrentSession(SYSTEM_ADMIN_ACCOUNT);
-        onLoginSuccess(SYSTEM_ADMIN_ACCOUNT);
-        return;
-      }
-    }
-
-    // 2. Regular User Login
     try {
+      // 1. Resolve email address for Firebase Authentication
       let targetEmail = cleanId;
-      if (!cleanId.includes('@')) {
+      if (cleanId.toLowerCase() === 'vaultix_admin') {
+        targetEmail = 'vaultixincometeam@outlook.com';
+      } else if (!cleanId.includes('@')) {
         const localUsers = getUsers();
-        const foundLocal = localUsers.find((u) => u.username.toLowerCase() === cleanId);
-        if (foundLocal && foundLocal.email) {
-          targetEmail = foundLocal.email;
+        const found = localUsers.find(
+          (u) => u.username.toLowerCase() === cleanId.toLowerCase()
+        );
+        if (found && found.email) {
+          targetEmail = found.email;
         } else {
           try {
             const q = query(collection(db, 'users'), where('username', '==', cleanId));
@@ -170,43 +108,110 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
               }
             }
           } catch {
-            // Ignore offline / unconfigured query error
+            // Ignore offline/permission lookup errors
           }
         }
       }
 
-      let uid = '';
+      // 2. Authenticate strictly via Firebase Authentication
+      let authUser: FirebaseUser | null = null;
       try {
         const userCred = await signInWithEmailAndPassword(auth, targetEmail, cleanPass);
-        uid = userCred.user.uid;
+        authUser = userCred.user;
       } catch (authErr: any) {
-        console.warn('Firebase Auth sign-in warning:', authErr.message);
-      }
-
-      let loggedInUser: User | null = null;
-      if (uid) {
-        try {
-          const userDocSnap = await getDoc(doc(db, 'users', uid));
-          if (userDocSnap.exists()) {
-            loggedInUser = userDocSnap.data() as User;
-          }
-        } catch {
-          // Ignore Firestore doc read error
+        console.error('Firebase Auth sign-in error:', authErr);
+        if (
+          authErr.code === 'auth/invalid-credential' ||
+          authErr.code === 'auth/wrong-password' ||
+          authErr.code === 'auth/user-not-found'
+        ) {
+          setError('Invalid login credentials. Please check your username/email and password.');
+          return;
+        } else if (authErr.code === 'auth/too-many-requests') {
+          setError('Too many failed attempts. Access to this account has been temporarily disabled. Please wait a moment and try again.');
+          return;
+        } else {
+          setError(`Authentication failed: ${authErr.message || authErr}`);
+          return;
         }
       }
 
-      if (!loggedInUser) {
-        const users = getUsers();
-        loggedInUser = users.find((u) => {
-          const matchUsername = u.username.toLowerCase() === cleanId || u.email.toLowerCase() === cleanId;
-          const matchPass = u.passwordHash === cleanPass || cleanPass === 'password123';
-          return matchUsername && matchPass;
-        }) || null;
+      const uid = authUser.uid;
+      const userEmail = authUser.email || targetEmail;
+      const idTokenResult = await authUser.getIdTokenResult();
+      const isUserAdmin =
+        userEmail.toLowerCase() === 'vaultixincometeam@outlook.com' ||
+        idTokenResult.claims.role === 'ADMIN' ||
+        idTokenResult.claims.admin === true;
+
+      let loggedInUser: User | null = null;
+
+      // 3. Retrieve user profile from Cloud Firestore
+      try {
+        const docSnap = await getDoc(doc(db, 'users', uid));
+        if (docSnap.exists()) {
+          loggedInUser = docSnap.data() as User;
+        }
+      } catch (fsErr) {
+        console.warn('Could not read user profile from Firestore:', fsErr);
       }
 
+      // 4. Fallback profile initialization if not yet present in Firestore
       if (!loggedInUser) {
-        setError('Invalid login credentials. Please check your username/email and password.');
-        return;
+        if (isUserAdmin) {
+          loggedInUser = {
+            userId: uid,
+            accountId: 'VX-100001',
+            username: 'vaultix_admin',
+            fullName: 'Vaultix Administrator',
+            email: userEmail,
+            role: 'ADMIN',
+            accountStatus: 'ACTIVE',
+            balance: 0.0,
+            referralEarnings: 0.0,
+            bonusBalance: 0.0,
+            totalDeposits: 0.0,
+            totalInvestments: 0.0,
+            totalProfitLoss: 0.0,
+            referralCode: 'VXREF-ADMIN',
+            createdAt: new Date().toISOString()
+          };
+          try {
+            await setDoc(doc(db, 'users', uid), cleanFirestoreData(loggedInUser), { merge: true });
+          } catch (writeErr) {
+            console.warn('Could not write admin profile to Firestore:', writeErr);
+          }
+        } else {
+          const localUsers = getUsers();
+          const found = localUsers.find(
+            (u) => u.userId === uid || u.email.toLowerCase() === userEmail.toLowerCase()
+          );
+          if (found) {
+            loggedInUser = { ...found, userId: uid };
+          } else {
+            loggedInUser = {
+              userId: uid,
+              accountId: `VX-${Math.floor(100000 + Math.random() * 900000)}`,
+              username: userEmail.split('@')[0],
+              fullName: userEmail.split('@')[0],
+              email: userEmail,
+              role: 'USER',
+              accountStatus: 'ACTIVE',
+              balance: 0.0,
+              referralEarnings: 0.0,
+              bonusBalance: 0.0,
+              totalDeposits: 0.0,
+              totalInvestments: 0.0,
+              totalProfitLoss: 0.0,
+              referralCode: `VXREF-${Math.floor(1000 + Math.random() * 9000)}`,
+              createdAt: new Date().toISOString()
+            };
+          }
+        }
+      }
+
+      if (isUserAdmin && loggedInUser) {
+        loggedInUser.role = 'ADMIN';
       }
 
       if (loggedInUser.accountStatus === 'SUSPENDED') {
@@ -315,25 +320,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       if (referrerUser) {
         referrerUsername = referrerUser.username;
         referrerDisplayName = referrerUser.fullName || referrerUser.username;
-
-        // Referrer receives $10.00 referral bonus in Bonus Balance
-        referrerUser.bonusBalance = (referrerUser.bonusBalance || 0) + 10.0;
-        referrerUser.referralEarnings = (referrerUser.referralEarnings || 0) + 10.0;
-
-        const refTx: Transaction = {
-          id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-          userId: referrerUser.userId,
-          type: 'REFERRAL_REWARD',
-          amount: 10.0,
-          currency: 'USD',
-          status: 'COMPLETED',
-          timestamp: new Date().toISOString(),
-          note: `Referral Bonus ($10.00 locked) for inviting @${username.trim()}`
-        };
-        txs.unshift(refTx);
-
-        // Newly registered user receives $5.00 referral bonus in Bonus Balance
-        initialBonusBalance = 5.0;
       } else {
         setError(`Invalid referral code "${referralCodeInput.trim()}" provided. Registration cancelled.`);
         return;
@@ -347,13 +333,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       uid = userCredential.user.uid;
     } catch (authErr: any) {
       if (authErr.code === 'auth/email-already-in-use') {
-        try {
-          const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
-          uid = signCred.user.uid;
-        } catch (signInErr: any) {
-          setError('This email address is already registered in Firebase. Please log in instead.');
-          return;
-        }
+        setError('This email address is already registered in Firebase. Please log in instead.');
+        return;
       } else {
         console.error('Firebase Auth registration error:', authErr);
         setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please verify VITE_FIREBASE_API_KEY on Vercel.`);
@@ -361,18 +342,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
     }
 
+    // Construct secure default user document (strictly 0 balances, NO password fields)
     const newUser: User = {
       userId: uid,
       accountId: `VX-${Math.floor(100000 + Math.random() * 900000)}`,
       username: username.trim(),
       fullName: fullName.trim(),
       email: email.trim(),
-      passwordHash: password,
       role: 'USER',
       accountStatus: 'ACTIVE',
       balance: 0.0,
-      referralEarnings: initialBonusBalance,
-      bonusBalance: initialBonusBalance, // $5.00 locked bonus balance
+      referralEarnings: 0.0,
+      bonusBalance: 0.0,
       totalDeposits: 0.0,
       totalInvestments: 0.0,
       totalProfitLoss: 0.0,
@@ -390,38 +371,61 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       newUser.referredByDisplayName = referrerDisplayName;
     }
 
-    if (initialBonusBalance > 0) {
-      const signupTx: Transaction = {
-        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-        userId: newUser.userId,
-        type: 'REFERRAL_REWARD',
-        amount: initialBonusBalance,
-        currency: 'USD',
-        status: 'COMPLETED',
-        timestamp: new Date().toISOString(),
-        note: `Referral Signup Bonus ($5.00 locked in Bonus Wallet)`
-      };
-      txs.unshift(signupTx);
-    }
+    // Direct Awaited Firestore Document Creation with Real-Time Diagnostics
+    const cleanedUserData = cleanFirestoreData(newUser);
+    const authCurrentUid = auth.currentUser?.uid || '';
 
-    // MANDATORY Direct Awaited Firestore Document Creation with Sanitization
+    const ruleEvaluationDiagnostics = {
+      timestamp: new Date().toISOString(),
+      authCurrentUid,
+      newUserUserId: newUser.userId,
+      uidMatchesUserId: authCurrentUid === newUser.userId,
+      targetDocumentPath: `users/${newUser.userId}`,
+      userObjectPayload: cleanedUserData,
+      ruleChecks: {
+        isAuthenticated: Boolean(auth.currentUser),
+        isOwnerOfPath: authCurrentUid === newUser.userId,
+        userIdMatchesDocument: cleanedUserData.userId === newUser.userId,
+        roleIsUser: cleanedUserData.role === 'USER',
+        accountStatusIsActive: cleanedUserData.accountStatus === 'ACTIVE',
+        balanceZero: cleanedUserData.balance === 0,
+        totalDepositsZero: cleanedUserData.totalDeposits === 0,
+        totalInvestmentsZero: cleanedUserData.totalInvestments === 0,
+        totalProfitLossZero: cleanedUserData.totalProfitLoss === 0,
+        referralEarningsZero: cleanedUserData.referralEarnings === 0,
+        bonusBalanceZero: !cleanedUserData.bonusBalance || cleanedUserData.bonusBalance === 0,
+        noPasswordHash: !('passwordHash' in cleanedUserData),
+        noPassword: !('password' in cleanedUserData)
+      }
+    };
+
+    console.group('🔍 [VAULTIX REGISTRATION DIAGNOSTIC] Firestore Rule Evaluation');
+    console.log('Firebase Auth UID:', authCurrentUid);
+    console.log('New User ID:', newUser.userId);
+    console.log('Document Path:', `users/${newUser.userId}`);
+    console.log('Payload Data Structure:', cleanedUserData);
+    console.table(ruleEvaluationDiagnostics.ruleChecks);
+    console.groupEnd();
+
     try {
-      await setDoc(doc(db, 'users', newUser.userId), cleanFirestoreData(newUser));
+      await setDoc(doc(db, 'users', newUser.userId), cleanedUserData);
+      console.log('✅ [VAULTIX REGISTRATION] Document successfully written to Firestore:', `users/${newUser.userId}`);
     } catch (fsErr: any) {
-      console.error('Firestore registration document error:', fsErr);
-      setError(`Registration Failed: Could not write user document to Cloud Database (${fsErr.message || fsErr}). Operation cancelled.`);
+      console.error('❌ [VAULTIX REGISTRATION ERROR] Firestore rejected document write:', fsErr);
+      console.error('Diagnostic state at time of rejection:', JSON.stringify(ruleEvaluationDiagnostics, null, 2));
+      setError(`Registration Failed: Could not write user document to Cloud Database (${fsErr.message || fsErr}). Check browser console for full rule diagnostic trace.`);
       return;
     }
 
-    users.push(newUser);
-    saveUsers(users);
-    saveTransactions(txs);
+    const currentUsers = getUsers();
+    currentUsers.push(newUser);
+    saveUsers(currentUsers);
     saveCurrentSession(newUser);
     onLoginSuccess(newUser);
 
     setMessage(
-      initialBonusBalance > 0
-        ? 'Registration successful! $5.00 Referral Signup Bonus credited to your Bonus Wallet.'
+      referrerUsername
+        ? `Registration successful! Referral by @${referrerUsername} recorded.`
         : 'Registration successful! Welcome to Vaultix Income.'
     );
 

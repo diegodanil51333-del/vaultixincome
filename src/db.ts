@@ -1,5 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
-import { db, doc, setDoc, collection, onSnapshot, cleanFirestoreData } from './firebase';
+import { auth, db, doc, setDoc, collection, onSnapshot, cleanFirestoreData } from './firebase';
 
 const USERS_KEY = 'vaultix_users_v13';
 const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
@@ -484,8 +484,10 @@ export const SEED_ACCOUNTS: User[] = [];
 export const SEED_TRANSACTIONS: Transaction[] = [];
 
 async function syncUsersToFirestore(users: User[]) {
+  const currentUid = auth.currentUser?.uid;
+  const isCurrentAdmin = auth.currentUser?.email?.toLowerCase() === 'vaultixincometeam@outlook.com';
   for (const u of users) {
-    if (u.userId) {
+    if (u.userId && (isCurrentAdmin || u.userId === currentUid)) {
       try {
         await setDoc(doc(db, 'users', u.userId), cleanFirestoreData(u), { merge: true });
       } catch (err) {
@@ -496,8 +498,10 @@ async function syncUsersToFirestore(users: User[]) {
 }
 
 async function syncTxsToFirestore(txs: Transaction[]) {
+  const currentUid = auth.currentUser?.uid;
+  const isCurrentAdmin = auth.currentUser?.email?.toLowerCase() === 'vaultixincometeam@outlook.com';
   for (const t of txs) {
-    if (t.id) {
+    if (t.id && (isCurrentAdmin || (t.userId === currentUid && t.status === 'PENDING'))) {
       try {
         await setDoc(doc(db, 'transactions', t.id), cleanFirestoreData(t), { merge: true });
       } catch (err) {

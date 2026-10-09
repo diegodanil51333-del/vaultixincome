@@ -5,7 +5,7 @@ export interface User {
   fullName: string;
   email: string;
   phoneNumber?: string;
-  passwordHash: string;
+  passwordHash?: string;
   role: 'ADMIN' | 'USER';
   accountStatus: 'ACTIVE' | 'SUSPENDED';
   balance: number;
