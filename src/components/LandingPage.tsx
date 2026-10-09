@@ -84,20 +84,40 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
           <div className="text-center space-y-6 max-w-4xl mx-auto">
-            <div className="inline-flex items-center space-x-2 bg-[#1D2432]/90 border border-[#D4AF37]/40 px-4 py-1.5 rounded-full shadow-lg">
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 bg-[#141923]/95 border border-[#D4AF37]/50 px-4 py-1.5 rounded-full shadow-xl">
               <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
-              <span className="text-xs font-bold text-[#D4AF37] tracking-wide uppercase">Institutional Digital Asset Yield Platform</span>
+              <span className="text-xs font-black text-[#D4AF37] tracking-wider uppercase">VAULTIX PRIVATE WEALTH & DIGITAL ASSET BANK</span>
+              <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                ● 100% Full Reserve
+              </span>
             </div>
 
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-tight">
-              Algorithmic Yield Strategies & <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#D4AF37]">Digital Wealth Management</span>
+              Institutional Digital Asset Bank & <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#D4AF37]">Algorithmic Yield Vaults</span>
             </h1>
 
             <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed font-normal">
-              Automated compounding yield vaults, multi-asset liquidity routing across USDT, BTC, ETH, BNB, SOL, TRX, and XRP with transparent portfolio reporting.
+              Regulated-grade digital asset custody, multi-signature cold storage, and automated yield compounding across USDT, Bitcoin, Ethereum, Solana, and premier global equities.
             </p>
 
+            {/* Institutional Security Highlights Bar */}
+            <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-300 font-semibold pt-1">
+              <span className="flex items-center space-x-1.5 bg-[#141923]/80 border border-[#2A3447] px-3 py-1 rounded-xl">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Multi-Sig Cold Custody</span>
+              </span>
+              <span className="flex items-center space-x-1.5 bg-[#141923]/80 border border-[#2A3447] px-3 py-1 rounded-xl">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Automated Daily Settlement</span>
+              </span>
+              <span className="flex items-center space-x-1.5 bg-[#141923]/80 border border-[#2A3447] px-3 py-1 rounded-xl">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Zero-Knowledge Security</span>
+              </span>
+            </div>
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+
               <button
                 onClick={() => onOpenAuth('register')}
                 className="w-full sm:w-auto bg-[#D4AF37] hover:bg-[#b8982e] text-black font-extrabold px-8 py-3.5 rounded-xl text-sm transition-all shadow-xl shadow-[#D4AF37]/15 flex items-center justify-center space-x-2 cursor-pointer"
