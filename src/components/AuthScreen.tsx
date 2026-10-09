@@ -207,6 +207,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
               createdAt: new Date().toISOString()
             };
           }
+          if (loggedInUser) {
+            try {
+              await setDoc(doc(db, 'users', uid), cleanFirestoreData(loggedInUser), { merge: true });
+            } catch (err) {
+              console.warn('Could not heal user profile in Firestore:', err);
+            }
+          }
         }
       }
 
@@ -326,15 +333,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
     }
 
-    // Strictly register with Firebase Auth to obtain real UID from Cloud
     let uid = '';
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       uid = userCredential.user.uid;
     } catch (authErr: any) {
       if (authErr.code === 'auth/email-already-in-use') {
-        setError('This email address is already registered in Firebase. Please log in instead.');
-        return;
+        // If the email already exists in Auth (e.g. from an earlier interrupted attempt where the Firestore write was blocked),
+        // authenticate with the provided password to recover the session and create the Firestore document.
+        try {
+          const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          uid = signCred.user.uid;
+        } catch {
+          setError('This email address is already registered in Firebase. Please log in instead.');
+          return;
+        }
       } else {
         console.error('Firebase Auth registration error:', authErr);
         setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please verify VITE_FIREBASE_API_KEY on Vercel.`);
@@ -364,12 +377,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     if (phoneNumber.trim()) {
       newUser.phoneNumber = phoneNumber.trim();
     }
+    if (referrerUser?.userId) {
+      newUser.referredBy = referrerUser.userId;
+    }
     if (referrerUsername) {
       newUser.referredByUsername = referrerUsername;
     }
     if (referrerDisplayName) {
       newUser.referredByDisplayName = referrerDisplayName;
     }
+
 
     // Direct Awaited Firestore Document Creation with Real-Time Diagnostics
     const cleanedUserData = cleanFirestoreData(newUser);

@@ -1,5 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
-import { auth, db, doc, setDoc, collection, onSnapshot, cleanFirestoreData } from './firebase';
+import { auth, db, doc, setDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where } from './firebase';
 
 const USERS_KEY = 'vaultix_users_v13';
 const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
@@ -512,51 +512,116 @@ async function syncTxsToFirestore(txs: Transaction[]) {
 }
 
 let firestoreListenersInitialized = false;
+let unsubscribeUsers: (() => void) | null = null;
+let unsubscribeTxs: (() => void) | null = null;
 
 export function initFirestoreListeners() {
   if (firestoreListenersInitialized || typeof window === 'undefined') return;
   firestoreListenersInitialized = true;
 
   try {
-    // Listen to Firestore Users collection in real time
-    onSnapshot(collection(db, 'users'), (snapshot) => {
-      if (snapshot) {
-        const firestoreUsers: User[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data() as User;
-          if (data && data.userId) {
-            firestoreUsers.push(data);
-          }
-        });
-
-        const userMap = new Map<string, User>();
-        firestoreUsers.forEach((f) => userMap.set(f.userId, f));
-
-        const merged = Array.from(userMap.values());
-        localStorage.setItem(USERS_KEY, JSON.stringify(merged));
-        emitDataUpdateEvents('users');
+    onAuthStateChanged(auth, (currentUser: any) => {
+      // Clean up previous listeners if any
+      if (unsubscribeUsers) {
+        unsubscribeUsers();
+        unsubscribeUsers = null;
       }
-    }, (err) => {
-      console.error('Firestore users snapshot listener error:', err);
+      if (unsubscribeTxs) {
+        unsubscribeTxs();
+        unsubscribeTxs = null;
+      }
+
+      if (!currentUser) {
+        // Visitor is unauthenticated; do not poll protected private collections
+        return;
+      }
+
+      const isAdmin = currentUser.email?.toLowerCase() === 'vaultixincometeam@outlook.com';
+
+      if (isAdmin) {
+        // Administrator: Real-time listener for ALL users and ALL transactions
+        try {
+          unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot: any) => {
+            if (snapshot) {
+              const firestoreUsers: User[] = [];
+              snapshot.forEach((docSnap: any) => {
+                const data = docSnap.data() as User;
+                if (data && data.userId) {
+                  firestoreUsers.push(data);
+                }
+              });
+
+              const userMap = new Map<string, User>();
+              firestoreUsers.forEach((f) => userMap.set(f.userId, f));
+              const merged = Array.from(userMap.values());
+              localStorage.setItem(USERS_KEY, JSON.stringify(merged));
+              emitDataUpdateEvents('users');
+            }
+          }, (err: any) => {
+            console.warn('Admin users snapshot listener warning:', err.message);
+          });
+
+          unsubscribeTxs = onSnapshot(collection(db, 'transactions'), (snapshot: any) => {
+            if (snapshot) {
+              const firestoreTxs: Transaction[] = [];
+              snapshot.forEach((docSnap: any) => {
+                const data = docSnap.data() as Transaction;
+                if (data && data.id) {
+                  firestoreTxs.push(data);
+                }
+              });
+
+              localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(firestoreTxs));
+              emitDataUpdateEvents('txs');
+            }
+          }, (err: any) => {
+            console.warn('Admin transactions snapshot listener warning:', err.message);
+          });
+        } catch (adminErr: any) {
+          console.warn('Admin listeners setup exception:', adminErr);
+        }
+      } else {
+        // Ordinary User: Real-time listener scoped strictly to OWN user document and OWN transactions
+        try {
+          unsubscribeUsers = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap: any) => {
+            if (docSnap && docSnap.exists()) {
+              const myData = docSnap.data() as User;
+              const currentList = getUsersLocal();
+              const idx = currentList.findIndex(u => u.userId === myData.userId);
+              if (idx >= 0) {
+                currentList[idx] = myData;
+              } else {
+                currentList.push(myData);
+              }
+              localStorage.setItem(USERS_KEY, JSON.stringify(currentList));
+              emitDataUpdateEvents('users');
+            }
+          }, (err: any) => {
+            console.warn('User own profile snapshot listener warning:', err.message);
+          });
+
+          const userTxsQuery = query(collection(db, 'transactions'), where('userId', '==', currentUser.uid));
+          unsubscribeTxs = onSnapshot(userTxsQuery, (snapshot: any) => {
+            if (snapshot) {
+              const myTxs: Transaction[] = [];
+              snapshot.forEach((d: any) => {
+                const data = d.data() as Transaction;
+                if (data && data.id) {
+                  myTxs.push(data);
+                }
+              });
+              localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(myTxs));
+              emitDataUpdateEvents('txs');
+            }
+          }, (err: any) => {
+            console.warn('User own transactions snapshot listener warning:', err.message);
+          });
+        } catch (userErr: any) {
+          console.warn('User listeners setup exception:', userErr);
+        }
+      }
     });
 
-    // Listen to Firestore Transactions collection in real time
-    onSnapshot(collection(db, 'transactions'), (snapshot) => {
-      if (snapshot) {
-        const firestoreTxs: Transaction[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data() as Transaction;
-          if (data && data.id) {
-            firestoreTxs.push(data);
-          }
-        });
-
-        localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(firestoreTxs));
-        emitDataUpdateEvents('txs');
-      }
-    }, (err) => {
-      console.error('Firestore transactions snapshot listener error:', err);
-    });
   } catch (err) {
     console.error('Firestore listeners initialization exception:', err);
   }

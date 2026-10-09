@@ -15,6 +15,7 @@ export interface User {
   totalInvestments: number;
   totalProfitLoss: number;
   referralCode: string;
+  referredBy?: string;
   referredByUsername?: string;
   referredByDisplayName?: string;
   hasReceivedFirstDepositBonus?: boolean;

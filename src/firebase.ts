@@ -5,7 +5,7 @@ import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 
 const metaEnv = (import.meta as unknown as { env: Record<string, string> }).env || {};
 
-const rawApiKey = metaEnv.VITE_FIREBASE_API_KEY || "";
+const rawApiKey = metaEnv.VITE_FIREBASE_API_KEY || "AIzaSyD0UqOpQzQ3lM7kMcDclnkZIQXFS8s0xEE";
 export const isFirebaseConfigured = Boolean(
   rawApiKey &&
   rawApiKey.length > 20 &&
