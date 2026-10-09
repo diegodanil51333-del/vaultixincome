@@ -67,7 +67,11 @@ export const CryptoMarquee: React.FC = () => {
   const displayItems = [...TICKER_DATA, ...TICKER_DATA, ...TICKER_DATA];
 
   return (
-    <div className="w-full bg-[#10141D] border-y border-[#2A3447]/80 overflow-hidden py-3 relative select-none">
+    <div 
+      className="w-full max-w-full overflow-hidden bg-[#10141D] border-y border-[#2A3447]/80 py-3 relative select-none"
+      style={{ contain: 'layout paint' }}
+    >
+
       {/* Gradient edge masks for smooth fade */}
       <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0B0E14] to-transparent z-10 pointer-events-none" />
       <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0B0E14] to-transparent z-10 pointer-events-none" />

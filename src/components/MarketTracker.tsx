@@ -117,27 +117,30 @@ export const MarketTracker: React.FC = () => {
     const fillColor = positive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)';
 
     return (
-      <svg className="w-full h-12 overflow-visible" viewBox={`0 0 ${width} ${height}`}>
-        <defs>
-          <linearGradient id={`grad-${activeTicker.symbol}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
-          </linearGradient>
-        </defs>
-        <polygon
-          points={`0,${height} ${points} ${width},${height}`}
-          fill={fillColor}
-        />
-        <polyline
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          points={points}
-        />
-      </svg>
+      <div className="w-full h-12 overflow-hidden relative">
+        <svg className="w-full h-12 overflow-hidden block" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={`grad-${activeTicker.symbol}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+          <polygon
+            points={`0,${height} ${points} ${width},${height}`}
+            fill={fillColor}
+          />
+          <polyline
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            points={points}
+          />
+        </svg>
+      </div>
     );
+
   };
 
   return (

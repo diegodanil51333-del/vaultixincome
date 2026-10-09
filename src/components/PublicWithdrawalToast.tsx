@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction } from '../types';
-import { db, collection, onSnapshot, query, where } from '../firebase';
+import { auth, db, collection, onSnapshot, query, where } from '../firebase';
 import { getUsers } from '../db';
+
 import { ArrowUpRight, CheckCircle2, ShieldCheck, X } from 'lucide-react';
 
 interface ActiveNotification {
@@ -58,11 +59,17 @@ export const PublicWithdrawalToast: React.FC = () => {
       return tx.currency ? `${tx.currency} Vault` : 'Crypto Yield Vault';
     };
 
+    // Only listen to Firestore if user is authenticated administrator with access to all transactions
+    if (!auth.currentUser || auth.currentUser.email?.toLowerCase() !== 'vaultixincometeam@outlook.com') {
+      return;
+    }
+
     // Real-time Firestore snapshot listener for APPROVED / COMPLETED withdrawals
     const q = query(
       collection(db, 'transactions'),
       where('status', 'in', ['APPROVED', 'COMPLETED'])
     );
+
 
     const unsubscribe = onSnapshot(
       q,
