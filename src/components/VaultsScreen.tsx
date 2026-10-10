@@ -47,17 +47,50 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
     }
   };
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  // Confirmation Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  const handleOpenConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
+    if (depositAmount <= 0) {
+      setError('Please enter a valid deposit amount greater than zero.');
+      return;
+    }
+
+    if (depositAmount < selectedPlan.minDeposit || depositAmount > selectedPlan.maxDeposit) {
+      setError(`Deposit amount must be between $${selectedPlan.minDeposit.toLocaleString()} and $${selectedPlan.maxDeposit.toLocaleString()} for ${selectedPlan.name}.`);
+      return;
+    }
+
+    if (user.balance < depositAmount) {
+      setError(
+        `Insufficient balance. You need $${depositAmount.toFixed(2)} to start this investment, but your available balance is $${user.balance.toFixed(2)}. Please add funds or choose a plan within your available balance.`
+      );
+      return;
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSubscribe = async () => {
+    setIsSubscribing(true);
+    setError(null);
+    setSuccess(null);
+
     try {
-      const res = subscribeInvestmentPlan(user, selectedPlan.id, depositAmount);
+      const res = await subscribeInvestmentPlan(user, selectedPlan.id, depositAmount);
       onUserUpdated(res.user);
       setSuccess(`Successfully subscribed $${depositAmount.toLocaleString()} to ${selectedPlan.name}! Estimated yield: +$${res.investment.dailyReturn.toFixed(2)}/day.`);
+      setShowConfirmModal(false);
     } catch (err: any) {
       setError(err.message || 'Subscription failed.');
+      setShowConfirmModal(false);
+    } finally {
+      setIsSubscribing(false);
     }
   };
 
@@ -263,7 +296,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
           <span>Subscribe to {selectedPlan.name}</span>
         </h3>
 
-        <form onSubmit={handleSubscribe} className="space-y-4">
+        <form onSubmit={handleOpenConfirmation} className="space-y-4">
           <div>
             <div className="flex justify-between text-xs text-slate-300 mb-1">
               <span>Deposit Amount ($)</span>
@@ -441,6 +474,96 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
                 SUBMIT INVESTMENT WITHDRAWAL
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Investment Subscription Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-[#141923] border border-[#2A3447] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => !isSubscribing && setShowConfirmModal(false)}
+              disabled={isSubscribing}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white disabled:opacity-50"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-base font-bold text-white flex items-center space-x-2">
+              <ShieldCheck className="w-5 h-5 text-[#D4AF37]" />
+              <span>Confirm Investment Subscription</span>
+            </h3>
+
+            <p className="text-xs text-slate-400">
+              Please review the investment details and locking terms carefully before proceeding.
+            </p>
+
+            <div className="bg-[#1D2432] border border-[#2A3447] rounded-xl p-4 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Selected Plan:</span>
+                <span className="font-bold text-white text-sm">{selectedPlan.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Base Asset:</span>
+                <span className="font-mono text-[#D4AF37] font-bold">{selectedPlan.asset}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Investment Amount:</span>
+                <span className="font-extrabold text-white text-base font-mono">${depositAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Daily Return:</span>
+                <span className="font-bold text-emerald-400">+{selectedPlan.dailyYield}% (+${dailyReturn.toFixed(2)}/day)</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Lock Duration:</span>
+                <span className="font-bold text-cyan-400">{selectedPlan.lockDays} Days</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-[#2A3447]">
+                <span className="text-slate-300 font-semibold">Total Projected Return:</span>
+                <span className="font-extrabold text-[#D4AF37]">
+                  +${(dailyReturn * selectedPlan.lockDays).toFixed(2)} USD
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-[#2A3447]">
+                <span className="text-slate-400">Your Available Balance:</span>
+                <span className="font-mono text-slate-300">${user.balance.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Balance After Investment:</span>
+                <span className="font-mono font-bold text-emerald-400">
+                  ${Math.max(0, user.balance - depositAmount).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-[11px] text-amber-300 leading-relaxed">
+              <strong>Notice:</strong> Your capital is secured by algorithmic yield strategies. Upon completion of the {selectedPlan.lockDays}-day maturity period, your principal and all accrued yield become eligible for withdrawal.
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={isSubscribing}
+                className="w-1/3 bg-[#1D2432] hover:bg-[#2A3447] text-slate-300 font-bold py-2.5 rounded-xl text-xs transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSubscribe}
+                disabled={isSubscribing}
+                className="w-2/3 bg-[#D4AF37] hover:bg-[#b8982e] text-black font-bold py-2.5 rounded-xl text-xs transition-all shadow-md flex items-center justify-center space-x-2 disabled:opacity-60 cursor-pointer"
+              >
+                {isSubscribing ? (
+                  <span>Processing Investment...</span>
+                ) : (
+                  <span>Confirm & Lock (${depositAmount.toLocaleString()})</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, Transaction, AuditLog } from '../types';
+import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, Transaction, AuditLog, UserInvestment } from '../types';
 import {
   getUsers, saveUsers, getTransactions, saveTransactions, approveDepositTransaction, rejectDepositTransaction,
   cancelDepositTransaction, approveWithdrawalTransaction, cancelWithdrawalTransaction,
-  getAuditLogs, saveAuditLogs, getWallets, saveWallets, getReferralConfig, saveReferralConfig, getPlans, savePlans
+  getAuditLogs, saveAuditLogs, getWallets, saveWallets, getReferralConfig, saveReferralConfig, getPlans, savePlans,
+  getInvestments, saveInvestments, getAccruedProfitForInvestment
 } from '../db';
 import { db, collection, onSnapshot } from '../firebase';
-import { ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, ArrowUpRight, Layers, Sliders, Activity, RefreshCw } from 'lucide-react';
+import { cryptoPriceService } from '../services/cryptoPriceService';
+import {
+  ShieldAlert, Search, CheckCircle, AlertCircle, X, DollarSign, Wallet, ArrowUpRight,
+  Layers, Sliders, Activity, RefreshCw, Copy, Check, TrendingUp
+} from 'lucide-react';
 import { TransactionReceiptModal } from './TransactionReceiptModal';
 
 interface AdminScreenProps {
@@ -14,7 +19,7 @@ interface AdminScreenProps {
 }
 
 export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
-  const [tab, setTab] = useState<'users' | 'deposits' | 'withdrawals' | 'all_txs' | 'wallets' | 'plans' | 'referral' | 'audit'>('users');
+  const [tab, setTab] = useState<'users' | 'deposits' | 'withdrawals' | 'investments' | 'all_txs' | 'wallets' | 'plans' | 'referral' | 'audit'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTxForReceipt, setSelectedTxForReceipt] = useState<Transaction | null>(null);
   const [users, setUsers] = useState<User[]>(getUsers());
@@ -23,6 +28,9 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const [refConfig, setRefConfig] = useState<ReferralConfig>(getReferralConfig());
   const [plans, setPlans] = useState<InvestmentPlan[]>(getPlans());
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(getAuditLogs());
+  const [investments, setInvestments] = useState<UserInvestment[]>(getInvestments());
+  const [cryptoPrices, setCryptoPrices] = useState(cryptoPriceService.getAllCachedPrices());
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -35,6 +43,12 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2500);
+  };
+
   const refreshData = () => {
     setUsers(getUsers());
     setTransactions(getTransactions());
@@ -42,6 +56,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     setRefConfig(getReferralConfig());
     setPlans(getPlans());
     setAuditLogs(getAuditLogs());
+    setInvestments(getInvestments());
+    setCryptoPrices(cryptoPriceService.getAllCachedPrices());
   };
 
   // REALTIME FIRESTORE DIRECT SNAPSHOT LISTENER & EVENT SYNC
@@ -51,7 +67,19 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     const handleUpdate = () => refreshData();
     window.addEventListener('vaultix_users_updated', handleUpdate);
     window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('vaultix_investments_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
+
+    // Initial live price fetch
+    cryptoPriceService.fetchAllLivePrices().then(() => {
+      setCryptoPrices(cryptoPriceService.getAllCachedPrices());
+    });
+
+    const priceInterval = setInterval(() => {
+      cryptoPriceService.fetchAllLivePrices().then(() => {
+        setCryptoPrices(cryptoPriceService.getAllCachedPrices());
+      });
+    }, 30000);
 
     // 1. Subscribe to Firestore Users collection in real time
     const unsubscribeUsers = onSnapshot(
@@ -95,12 +123,36 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
       }
     );
 
+    // 3. Subscribe to Firestore Investments collection in real time
+    const unsubscribeInvestments = onSnapshot(
+      collection(db, 'investments'),
+      (snapshot) => {
+        const fetchedInvs: UserInvestment[] = [];
+        snapshot.forEach((docSnap) => {
+          const inv = docSnap.data() as UserInvestment;
+          if (inv && inv.id) {
+            fetchedInvs.push(inv);
+          }
+        });
+        if (fetchedInvs.length > 0) {
+          saveInvestments(fetchedInvs, false);
+        }
+        refreshData();
+      },
+      (err) => {
+        console.error('Admin investments snapshot listener error:', err);
+      }
+    );
+
     return () => {
       window.removeEventListener('vaultix_users_updated', handleUpdate);
       window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('vaultix_investments_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
+      clearInterval(priceInterval);
       unsubscribeUsers();
       unsubscribeTxs();
+      unsubscribeInvestments();
     };
   }, []);
 

@@ -1,5 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
-import { auth, db, doc, setDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where } from './firebase';
+import { auth, db, doc, setDoc, getDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where } from './firebase';
 import { cryptoPriceService } from './services/cryptoPriceService';
 
 const USERS_KEY = 'vaultix_users_v13';
@@ -642,7 +642,7 @@ export function initializeDatabase() {
 }
 
 // Helper to emit real-time window update events across components and tabs
-function emitDataUpdateEvents(type: 'users' | 'txs' | 'all' = 'all') {
+function emitDataUpdateEvents(type: 'users' | 'txs' | 'investments' | 'all' = 'all') {
   try {
     if (typeof window !== 'undefined') {
       if (type === 'users' || type === 'all') {
@@ -650,6 +650,9 @@ function emitDataUpdateEvents(type: 'users' | 'txs' | 'all' = 'all') {
       }
       if (type === 'txs' || type === 'all') {
         window.dispatchEvent(new CustomEvent('vaultix_txs_updated'));
+      }
+      if (type === 'investments' || type === 'all') {
+        window.dispatchEvent(new CustomEvent('vaultix_investments_updated'));
       }
     }
   } catch {
@@ -725,8 +728,22 @@ export function getInvestments(): UserInvestment[] {
   return getInvestmentsLocal();
 }
 
-export function saveInvestments(invs: UserInvestment[]) {
+export function saveInvestments(invs: UserInvestment[], syncToCloud = true) {
   localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(invs));
+  if (syncToCloud) {
+    syncInvestmentsToFirestore(invs);
+  }
+  emitDataUpdateEvents('investments');
+}
+
+async function syncInvestmentsToFirestore(invs: UserInvestment[]) {
+  try {
+    for (const inv of invs.slice(0, 50)) {
+      await setDoc(doc(db, 'investments', inv.id), cleanFirestoreData(inv), { merge: true });
+    }
+  } catch (err) {
+    console.warn('Error syncing investments to Firestore:', err);
+  }
 }
 
 export function getInvitations(): Invitation[] {
@@ -1590,8 +1607,12 @@ export async function cancelWithdrawalTransaction(adminUser: User, transactionId
   return { user: targetUser || adminUser, tx: targetTx };
 }
 
-export function subscribeInvestmentPlan(user: User, planId: string, amount: number): { user: User; investment: UserInvestment } {
-  if (amount <= 0) {
+export async function subscribeInvestmentPlan(
+  user: User,
+  planId: string,
+  amount: number
+): Promise<{ user: User; investment: UserInvestment }> {
+  if (!amount || amount <= 0 || isNaN(amount)) {
     throw new Error('Investment amount must be greater than zero.');
   }
 
@@ -1602,24 +1623,56 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
   }
 
   if (amount < plan.minDeposit || amount > plan.maxDeposit) {
-    throw new Error(`Amount must be between $${plan.minDeposit} and $${plan.maxDeposit} for ${plan.name}.`);
+    throw new Error(`Amount must be between $${plan.minDeposit.toLocaleString()} and $${plan.maxDeposit.toLocaleString()} for ${plan.name}.`);
   }
 
+  // Fetch target user from local & cloud database to verify current available balance
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === user.userId);
   if (uIdx === -1) {
     throw new Error('User account not found.');
   }
 
-  const targetUser = users[uIdx];
-  if (targetUser.balance < amount) {
-    throw new Error(`Insufficient funds. Your balance is $${targetUser.balance.toFixed(2)}.`);
+  let targetUser = { ...users[uIdx] };
+
+  try {
+    const userDocSnap = await getDoc(doc(db, 'users', user.userId));
+    if (userDocSnap.exists()) {
+      const cloudUser = userDocSnap.data() as User;
+      if (cloudUser && typeof cloudUser.balance === 'number') {
+        targetUser = { ...targetUser, ...cloudUser };
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch cloud balance before investment check:', err);
   }
 
-  targetUser.balance -= amount;
-  targetUser.totalInvestments += amount;
+  const currentBalance = targetUser.balance || 0;
+
+  // Strict Balance Check (Fulfills PART 2: Insufficient balance handling)
+  if (currentBalance < amount) {
+    // Record failed investment attempt in Audit Logs for monitoring
+    const logs = getAuditLogs();
+    logs.unshift({
+      id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminId: 'SYSTEM',
+      action: 'INVESTMENT_FAILED_INSUFFICIENT_FUNDS',
+      targetUserId: targetUser.userId,
+      targetUsername: targetUser.username,
+      reason: `Attempted to invest $${amount.toFixed(2)} in ${plan.name} with available balance of $${currentBalance.toFixed(2)}`,
+      timestamp: new Date().toISOString()
+    });
+    saveAuditLogs(logs);
+
+    throw new Error(
+      `Insufficient balance. You need $${amount.toFixed(2)} to start this investment, but your available balance is $${currentBalance.toFixed(2)}. Please add funds or choose a plan within your available balance.`
+    );
+  }
+
+  const oldBalance = targetUser.balance;
+  targetUser.balance = Math.max(0, targetUser.balance - amount);
+  targetUser.totalInvestments = (targetUser.totalInvestments || 0) + amount;
   users[uIdx] = targetUser;
-  saveUsers(users);
 
   const dailyReturn = (amount * (plan.dailyYield / 100));
   const newInv: UserInvestment = {
@@ -1635,12 +1688,7 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
     status: 'ACTIVE'
   };
 
-  const invs = getInvestmentsLocal();
-  invs.unshift(newInv);
-  saveInvestments(invs);
-
-  const txs = getTransactionsLocal();
-  txs.unshift({
+  const invTx: Transaction = {
     id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
     userId: user.userId,
     type: 'YIELD',
@@ -1650,10 +1698,42 @@ export function subscribeInvestmentPlan(user: User, planId: string, amount: numb
     timestamp: new Date().toISOString(),
     processedAt: new Date().toISOString(),
     note: `Subscribed to ${plan.name} ($${amount.toFixed(2)})`
-  });
-  saveTransactions(txs);
+  };
 
+  // Direct Cloud Database atomic persistence
+  try {
+    await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
+    await setDoc(doc(db, 'investments', newInv.id), cleanFirestoreData(newInv));
+    await setDoc(doc(db, 'transactions', invTx.id), cleanFirestoreData(invTx));
+  } catch (err) {
+    console.warn('Error saving investment to Firestore:', err);
+  }
+
+  const invs = getInvestmentsLocal();
+  invs.unshift(newInv);
+  saveInvestments(invs, false);
+
+  const txs = getTransactionsLocal();
+  txs.unshift(invTx);
+  saveTransactions(txs, false);
+
+  saveUsers(users, false);
   saveCurrentSession(targetUser);
+
+  const logs = getAuditLogs();
+  logs.unshift({
+    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+    adminId: 'SYSTEM',
+    action: 'INVESTMENT_SUBSCRIBED',
+    targetUserId: targetUser.userId,
+    targetUsername: targetUser.username,
+    previousValue: `$${oldBalance.toFixed(2)}`,
+    newValue: `$${targetUser.balance.toFixed(2)}`,
+    reason: `Subscribed $${amount.toFixed(2)} to ${plan.name} (${newInv.id})`,
+    timestamp: new Date().toISOString()
+  });
+  saveAuditLogs(logs);
+
   return { user: targetUser, investment: newInv };
 }
 
