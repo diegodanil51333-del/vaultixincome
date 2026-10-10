@@ -19,6 +19,7 @@ export interface User {
   referredByUsername?: string;
   referredByDisplayName?: string;
   hasReceivedFirstDepositBonus?: boolean;
+  hasReceivedSignupBonus?: boolean;
   createdAt: string;
 }
 
@@ -86,6 +87,20 @@ export interface Transaction {
   destinationAddress?: string;
   network?: string;
   note: string;
+  // Cryptocurrency Valuation & Proof of Transfer
+  cryptoAmount?: number;
+  cryptoAsset?: string;
+  usdValuation?: number;
+  priceUsed?: number;
+  priceTimestamp?: string;
+  txHash?: string;
+  idempotencyKey?: string;
+  referralBonusesAwarded?: boolean;
+  cashbackAwarded?: boolean;
+  cashbackRate?: number;
+  cashbackAmount?: number;
+  cashbackTxId?: string;
+  relatedDepositId?: string;
 }
 
 export interface Invitation {

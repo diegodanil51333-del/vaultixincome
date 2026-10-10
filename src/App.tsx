@@ -32,7 +32,11 @@ export function App() {
     const recoveredSession = getCurrentSession();
     if (recoveredSession) {
       const allUsers = getUsers();
-      const freshUser = allUsers.find((u) => u.userId === recoveredSession.userId || u.email.toLowerCase() === recoveredSession.email.toLowerCase()) || recoveredSession;
+      const found = allUsers.find((u) => u.userId === recoveredSession.userId || u.email.toLowerCase() === recoveredSession.email.toLowerCase());
+      const freshUser: User = found ? { ...found, ...recoveredSession } : recoveredSession;
+      if (freshUser.email?.toLowerCase() === 'vaultixincometeam@outlook.com' || recoveredSession.role === 'ADMIN') {
+        freshUser.role = 'ADMIN';
+      }
       setCurrentUser(freshUser);
 
       // Restore saved active tab on page refresh
@@ -67,7 +71,12 @@ export function App() {
   };
 
   const handleLoginSuccess = (user: User) => {
-    const freshUser = getUsers().find((u) => u.userId === user.userId || u.email.toLowerCase() === user.email.toLowerCase()) || user;
+    const allUsers = getUsers();
+    const found = allUsers.find((u) => u.userId === user.userId || u.email.toLowerCase() === user.email.toLowerCase());
+    const freshUser: User = found ? { ...found, ...user } : { ...user };
+    if (freshUser.email?.toLowerCase() === 'vaultixincometeam@outlook.com' || user.role === 'ADMIN') {
+      freshUser.role = 'ADMIN';
+    }
     setCurrentUser(freshUser);
     saveCurrentSession(freshUser);
     setShowAuthScreen(false);

@@ -65,7 +65,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
           }
         });
         if (fetchedUsers.length > 0) {
-          saveUsers(fetchedUsers);
+          saveUsers(fetchedUsers, false);
         }
         refreshData();
       },
@@ -86,7 +86,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
           }
         });
         if (fetchedTxs.length > 0) {
-          saveTransactions(fetchedTxs);
+          saveTransactions(fetchedTxs, false);
         }
         refreshData();
       },
@@ -118,22 +118,34 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   });
 
   const pendingDeposits = transactions.filter((t) => t.type === 'DEPOSIT' && t.status === 'PENDING');
+  const approvedDeposits = transactions.filter((t) => t.type === 'DEPOSIT' && (t.status === 'APPROVED' || t.status === 'COMPLETED'));
   const pendingWithdrawals = transactions.filter((t) => t.type === 'WITHDRAWAL' && t.status === 'PENDING');
+
+  const [processingTxId, setProcessingTxId] = useState<string | null>(null);
 
   // Deposit Actions
   const handleApproveDeposit = async (txId: string) => {
+    if (processingTxId) return; // Prevent double-clicks
     try {
+      setProcessingTxId(txId);
       setError(null);
       const res = await approveDepositTransaction(currentAdmin, txId);
-      setMsg(`Deposit ${txId} approved! Credited $${res.tx.amount.toFixed(2)} to @${res.user.username}.`);
+      const cbNote = res.tx.cashbackAwarded && res.tx.cashbackAmount
+        ? ` (including +$${res.tx.cashbackAmount.toFixed(2)} 0.5% First-Deposit Cashback)`
+        : '';
+      setMsg(`Deposit ${txId} approved! Credited $${(res.tx.usdValuation || res.tx.amount).toFixed(2)} USD${cbNote} to @${res.user.username}.`);
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to approve deposit.');
+    } finally {
+      setProcessingTxId(null);
     }
   };
 
   const handleRejectDeposit = async (txId: string) => {
+    if (processingTxId) return;
     try {
+      setProcessingTxId(txId);
       setError(null);
       await rejectDepositTransaction(currentAdmin, txId, rejectReason || 'Admin Rejection');
       setMsg(`Deposit ${txId} rejected.`);
@@ -141,34 +153,46 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to reject deposit.');
+    } finally {
+      setProcessingTxId(null);
     }
   };
 
   const handleCancelDeposit = async (txId: string) => {
+    if (processingTxId) return;
     try {
+      setProcessingTxId(txId);
       setError(null);
       await cancelDepositTransaction(currentAdmin, txId);
       setMsg(`Deposit ${txId} cancelled.`);
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to cancel deposit.');
+    } finally {
+      setProcessingTxId(null);
     }
   };
 
   // Withdrawal Actions
   const handleApproveWithdrawal = async (txId: string) => {
+    if (processingTxId) return;
     try {
+      setProcessingTxId(txId);
       setError(null);
       const res = await approveWithdrawalTransaction(currentAdmin, txId);
       setMsg(`Withdrawal ${txId} approved and completed for @${res.user.username}!`);
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to approve withdrawal.');
+    } finally {
+      setProcessingTxId(null);
     }
   };
 
   const handleCancelWithdrawal = async (txId: string) => {
+    if (processingTxId) return;
     try {
+      setProcessingTxId(txId);
       setError(null);
       const res = await cancelWithdrawalTransaction(currentAdmin, txId, rejectReason || 'Administrative cancellation');
       setMsg(`Withdrawal ${txId} cancelled. Refunded $${res.tx.amount.toFixed(2)} back to @${res.user.username}.`);
@@ -176,6 +200,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to cancel withdrawal.');
+    } finally {
+      setProcessingTxId(null);
     }
   };
 
@@ -482,36 +508,78 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                 const targetUser = users.find((u) => u.userId === tx.userId);
                 return (
                   <div key={tx.id} className="p-4 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="space-y-1">
                         <div className="flex items-center space-x-2">
                           <span className="font-mono text-xs font-bold text-[#D4AF37]">{tx.id}</span>
-                          <span className="text-xs text-white font-bold">@{targetUser?.username || tx.userId}</span>
+                          <span className="text-xs text-white font-bold">@{targetUser?.username || tx.userId} ({targetUser?.fullName})</span>
+                          <span className="text-[10px] text-slate-400">{targetUser?.email}</span>
                           <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
                             PENDING
                           </span>
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5">
-                          Amount: <span className="text-emerald-400 font-bold">${tx.amount.toFixed(2)} {tx.currency}</span> • Date: {new Date(tx.timestamp).toLocaleString()}
+
+                        <div className="text-xs text-slate-300 space-x-2">
+                          <span>Deposit: <strong className="text-emerald-400 font-mono">{tx.cryptoAmount || tx.amount} {tx.currency}</strong></span>
+                          {tx.usdValuation && tx.currency !== 'USD' && tx.currency !== 'USDT' && (
+                            <span className="text-[#D4AF37] font-mono font-bold">
+                              (USD Equivalent: ${tx.usdValuation.toFixed(2)} USD • Price: ${tx.priceUsed?.toLocaleString()} USD)
+                            </span>
+                          )}
+                          <span className="text-slate-500">• Submitted: {new Date(tx.timestamp).toLocaleString()}</span>
                         </div>
+
+                        {tx.txHash && (
+                          <div className="text-[11px] font-mono text-slate-400 bg-[#0B0E14] px-2.5 py-1 rounded-lg border border-[#2A3447]/60 select-all break-all">
+                            <span className="text-slate-500">Blockchain Hash: </span>
+                            <span className="text-emerald-400">{tx.txHash}</span>
+                          </div>
+                        )}
+
+                        {targetUser && !targetUser.hasReceivedFirstDepositBonus && (
+                          <div className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded inline-block border border-emerald-500/20">
+                            ★ Qualifying for 0.5% First-Deposit Cashback (Est: ${((tx.usdValuation || tx.amount) * 0.005).toFixed(2)} USD)
+                          </div>
+                        )}
+                        {targetUser && targetUser.hasReceivedFirstDepositBonus && (
+                          <div className="text-[10px] text-slate-400 font-medium">
+                            First-Deposit Cashback: Already Claimed for this account
+                          </div>
+                        )}
+                        {targetUser && (targetUser.referredBy || targetUser.referredByUsername) && !targetUser.hasReceivedSignupBonus && (
+                          <div className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded inline-block border border-amber-500/20">
+                            ★ Qualifying for $3 User Signup Bonus & $5 Referrer (@{targetUser.referredByUsername}) Bonus
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 shrink-0">
                         <button
                           onClick={() => handleApproveDeposit(tx.id)}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer"
+                          disabled={processingTxId === tx.id}
+                          className={`font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all shadow-md flex items-center space-x-1 ${
+                            processingTxId === tx.id
+                              ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                              : 'bg-emerald-500 hover:bg-emerald-600 text-black cursor-pointer'
+                          }`}
                         >
-                          Approve
+                          {processingTxId === tx.id ? (
+                            <span>Processing...</span>
+                          ) : (
+                            <span>Approve & Credit</span>
+                          )}
                         </button>
                         <button
                           onClick={() => handleRejectDeposit(tx.id)}
-                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer"
+                          disabled={processingTxId === tx.id}
+                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer disabled:opacity-50"
                         >
                           Reject
                         </button>
                         <button
                           onClick={() => handleCancelDeposit(tx.id)}
-                          className="bg-[#2A3447] hover:bg-slate-600 text-slate-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer"
+                          disabled={processingTxId === tx.id}
+                          className="bg-[#2A3447] hover:bg-slate-600 text-slate-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer disabled:opacity-50"
                         >
                           Cancel
                         </button>
@@ -522,6 +590,67 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
               })}
             </div>
           )}
+
+          {/* Approved Deposits & 0.5% Cashback Ledger Audit Section */}
+          <div className="pt-6 space-y-4">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+              <span>Approved Deposits & 0.5% Cashback Audit Records ({approvedDeposits.length})</span>
+            </h4>
+
+            {approvedDeposits.length === 0 ? (
+              <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 text-center text-xs text-slate-400">
+                No approved deposits recorded yet.
+              </div>
+            ) : (
+              <div className="bg-[#141923] border border-[#2A3447] rounded-2xl divide-y divide-[#2A3447] overflow-hidden">
+                {approvedDeposits.map((tx) => {
+                  const targetUser = users.find((u) => u.userId === tx.userId);
+                  const isCashbackAwarded = Boolean(tx.cashbackAwarded);
+                  const cashbackAmt = tx.cashbackAmount || (isCashbackAwarded ? (tx.usdValuation || tx.amount) * 0.005 : 0);
+
+                  return (
+                    <div
+                      key={tx.id}
+                      onClick={() => setSelectedTxForReceipt(tx)}
+                      className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-[#1D2432]/40 transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-xs font-bold text-[#D4AF37]">{tx.id}</span>
+                          <span className="text-xs text-white font-bold">@{targetUser?.username || tx.userId}</span>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                            APPROVED
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-300">
+                          <span>Verified Value: <strong className="text-emerald-400 font-mono">${(tx.usdValuation || tx.amount).toFixed(2)} USD</strong> ({tx.cryptoAmount || tx.amount} {tx.currency})</span>
+                          <span className="text-slate-500"> • Processed: {new Date(tx.processedAt || tx.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div className="text-[11px] flex flex-wrap gap-x-4 gap-y-1 pt-1">
+                          <span className="text-slate-400">
+                            Cashback Rate: <span className="font-mono text-white font-semibold">0.5%</span>
+                          </span>
+                          <span className={isCashbackAwarded ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                            Cashback Status: {isCashbackAwarded ? `Awarded ($${cashbackAmt.toFixed(2)} USD)` : 'Not Awarded / Repeat Deposit'}
+                          </span>
+                          {tx.cashbackTxId && (
+                            <span className="text-amber-400 font-mono">
+                              Cashback TX: {tx.cashbackTxId}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-[11px] text-purple-400 font-bold hover:underline">View Deposit Slip →</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

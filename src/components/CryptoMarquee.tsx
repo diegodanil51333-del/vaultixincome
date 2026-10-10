@@ -1,70 +1,74 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BitcoinLogo, EthereumLogo, TetherLogo, BnbLogo, XrpLogo, TronLogo, SolanaLogo } from './CryptoLogos';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
+import { cryptoPriceService } from '../services/cryptoPriceService';
 
 interface TickerItem {
   symbol: string;
   name: string;
   price: string;
   change: string;
+  isPositive: boolean;
   logo: React.ReactNode;
 }
 
-const TICKER_DATA: TickerItem[] = [
-  {
-    symbol: 'BTC',
-    name: 'Bitcoin',
-    price: '$64,280.50',
-    change: '+2.85%',
-    logo: <BitcoinLogo className="w-5 h-5 flex-shrink-0" />
-  },
-  {
-    symbol: 'ETH',
-    name: 'Ethereum',
-    price: '$3,490.20',
-    change: '+1.92%',
-    logo: <EthereumLogo className="w-5 h-5 flex-shrink-0" />
-  },
-  {
-    symbol: 'USDT',
-    name: 'Tether TRC20',
-    price: '$1.0002',
-    change: '+0.01%',
-    logo: <TetherLogo className="w-5 h-5 flex-shrink-0" />
-  },
-  {
-    symbol: 'BNB',
-    name: 'BNB Chain',
-    price: '$586.40',
-    change: '+3.15%',
-    logo: <BnbLogo className="w-5 h-5 flex-shrink-0" />
-  },
-  {
-    symbol: 'XRP',
-    name: 'Ripple XRP',
-    price: '$0.5840',
-    change: '+4.12%',
-    logo: <XrpLogo className="w-5 h-5 flex-shrink-0" />
-  },
-  {
-    symbol: 'TRX',
-    name: 'Tron',
-    price: '$0.1585',
-    change: '+1.45%',
-    logo: <TronLogo className="w-5 h-5 flex-shrink-0" />
-  },
-  {
-    symbol: 'SOL',
-    name: 'Solana',
-    price: '$148.75',
-    change: '+2.10%',
-    logo: <SolanaLogo className="w-5 h-5 flex-shrink-0" />
-  }
-];
+const LOGO_MAP: Record<string, React.ReactNode> = {
+  BTC: <BitcoinLogo className="w-5 h-5 flex-shrink-0" />,
+  ETH: <EthereumLogo className="w-5 h-5 flex-shrink-0" />,
+  USDT: <TetherLogo className="w-5 h-5 flex-shrink-0" />,
+  BNB: <BnbLogo className="w-5 h-5 flex-shrink-0" />,
+  XRP: <XrpLogo className="w-5 h-5 flex-shrink-0" />,
+  SOL: <SolanaLogo className="w-5 h-5 flex-shrink-0" />,
+  TRX: <TronLogo className="w-5 h-5 flex-shrink-0" />
+};
 
 export const CryptoMarquee: React.FC = () => {
-  // Duplicate for smooth seamless infinite scroll loop
-  const displayItems = [...TICKER_DATA, ...TICKER_DATA, ...TICKER_DATA];
+  const [items, setItems] = useState<TickerItem[]>([
+    { symbol: 'BTC', name: 'Bitcoin', price: '$64,280.50', change: '+2.85%', isPositive: true, logo: LOGO_MAP.BTC },
+    { symbol: 'ETH', name: 'Ethereum', price: '$3,490.20', change: '+1.92%', isPositive: true, logo: LOGO_MAP.ETH },
+    { symbol: 'USDT', name: 'Tether TRC20', price: '$1.0000', change: '+0.01%', isPositive: true, logo: LOGO_MAP.USDT },
+    { symbol: 'BNB', name: 'BNB Chain', price: '$586.40', change: '+3.15%', isPositive: true, logo: LOGO_MAP.BNB },
+    { symbol: 'SOL', name: 'Solana', price: '$148.75', change: '+2.10%', isPositive: true, logo: LOGO_MAP.SOL },
+    { symbol: 'XRP', name: 'Ripple', price: '$0.5840', change: '+4.12%', isPositive: true, logo: LOGO_MAP.XRP },
+    { symbol: 'TRX', name: 'Tron', price: '$0.1585', change: '+1.45%', isPositive: true, logo: LOGO_MAP.TRX }
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const updatePrices = async () => {
+      try {
+        const prices = await cryptoPriceService.fetchAllPrices();
+        if (!isMounted) return;
+        const symbols = ['BTC', 'ETH', 'USDT', 'BNB', 'SOL', 'XRP', 'TRX'];
+        const updated: TickerItem[] = symbols.map((sym) => {
+          const p = prices[sym];
+          const priceStr = p ? (p.priceUsd >= 1 ? `$${p.priceUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `$${p.priceUsd.toFixed(4)}`) : '$0.00';
+          const changeVal = p ? p.change24h : 0;
+          const changeStr = `${changeVal >= 0 ? '+' : ''}${changeVal.toFixed(2)}%`;
+          return {
+            symbol: sym,
+            name: p?.name || sym,
+            price: priceStr,
+            change: changeStr,
+            isPositive: changeVal >= 0,
+            logo: LOGO_MAP[sym] || null
+          };
+        });
+        setItems(updated);
+      } catch {
+        // Keep fallback
+      }
+    };
+
+    updatePrices();
+    const interval = setInterval(updatePrices, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const displayItems = [...items, ...items, ...items];
 
   return (
     <div 
@@ -86,8 +90,8 @@ export const CryptoMarquee: React.FC = () => {
             <div className="flex items-center space-x-2">
               <span className="font-extrabold text-xs text-white tracking-wide">{item.symbol}</span>
               <span className="text-[11px] font-mono text-slate-300 font-medium">{item.price}</span>
-              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center">
-                <TrendingUp className="w-2.5 h-2.5 mr-0.5" />
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center ${item.isPositive ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>
+                {item.isPositive ? <TrendingUp className="w-2.5 h-2.5 mr-0.5" /> : <TrendingDown className="w-2.5 h-2.5 mr-0.5" />}
                 {item.change}
               </span>
             </div>

@@ -70,7 +70,7 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
       case 'REFERRAL_REWARD':
         return 'Referral Signup Reward';
       case 'FIRST_DEPOSIT_BONUS':
-        return 'First Deposit Bonus';
+        return '0.5% First-Deposit Cashback';
       case 'YIELD':
         return 'Yield Vault Return';
       case 'ADMIN_CREDIT':
@@ -158,6 +158,29 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
             <span className="text-slate-400">Asset Currency</span>
             <span className="font-bold text-white">{transaction.currency || 'USD'}</span>
           </div>
+
+          {transaction.relatedDepositId && (
+            <div className="flex justify-between items-center pt-2.5">
+              <span className="text-slate-400">Qualifying Deposit</span>
+              <span className="font-mono font-bold text-amber-300">{transaction.relatedDepositId}</span>
+            </div>
+          )}
+
+          {transaction.type === 'DEPOSIT' && transaction.usdValuation && (
+            <div className="flex justify-between items-center pt-2.5">
+              <span className="text-slate-400">Verified USD Value</span>
+              <span className="font-mono font-bold text-emerald-400">${transaction.usdValuation.toFixed(2)} USD</span>
+            </div>
+          )}
+
+          {transaction.type === 'DEPOSIT' && transaction.cashbackAwarded && (
+            <div className="flex justify-between items-center pt-2.5">
+              <span className="text-slate-400">0.5% Cashback</span>
+              <span className="font-mono font-bold text-emerald-400">
+                +${(transaction.cashbackAmount || (transaction.usdValuation || transaction.amount) * 0.005).toFixed(2)} USD {transaction.cashbackTxId ? `(${transaction.cashbackTxId})` : ''}
+              </span>
+            </div>
+          )}
 
           <div className="flex justify-between items-center pt-2.5">
             <span className="text-slate-400">Date</span>

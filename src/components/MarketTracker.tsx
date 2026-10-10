@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, RefreshCw, BarChart2 } from 'lucide-react';
+import { cryptoPriceService } from '../services/cryptoPriceService';
 
 interface CryptoTicker {
   symbol: string;
@@ -59,28 +60,24 @@ export const MarketTracker: React.FC = () => {
   const fetchLivePrices = async () => {
     setLoading(true);
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd&include_24hr_change=true');
-      if (res.ok) {
-        const data = await res.json();
-        setTickers((prev) =>
-          prev.map((t) => {
-            const idMap: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', XRP: 'ripple' };
-            const geckoData = data[idMap[t.symbol]];
-            if (geckoData) {
-              const newPrice = geckoData.usd || t.priceUsd;
-              const newChange = geckoData.usd_24h_change || t.change24h;
-              const updatedSparkline = [...t.sparkline.slice(1), newPrice];
-              return {
-                ...t,
-                priceUsd: newPrice,
-                change24h: newChange,
-                sparkline: updatedSparkline
-              };
-            }
-            return t;
-          })
-        );
-      }
+      const priceMap = await cryptoPriceService.fetchAllPrices();
+      setTickers((prev) =>
+        prev.map((t) => {
+          const live = priceMap[t.symbol];
+          if (live && live.priceUsd > 0) {
+            const newPrice = live.priceUsd;
+            const newChange = live.change24h;
+            const updatedSparkline = [...t.sparkline.slice(1), newPrice];
+            return {
+              ...t,
+              priceUsd: newPrice,
+              change24h: newChange,
+              sparkline: updatedSparkline
+            };
+          }
+          return t;
+        })
+      );
     } catch {
       // Fallback gracefully to current prices
     } finally {

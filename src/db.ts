@@ -1,5 +1,6 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
 import { auth, db, doc, setDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where } from './firebase';
+import { cryptoPriceService } from './services/cryptoPriceService';
 
 const USERS_KEY = 'vaultix_users_v13';
 const TRANSACTIONS_KEY = 'vaultix_transactions_v13';
@@ -461,14 +462,13 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
   }
 ];
 
-// Preserved Initial System Admin Account
+// Preserved Initial System Admin Account metadata
 export const SYSTEM_ADMIN_ACCOUNT: User = {
   userId: 'USR-000001',
   accountId: 'VX-100001',
   username: 'vaultix_admin',
   fullName: 'Vaultix Administrator',
   email: 'vaultixincometeam@outlook.com',
-  passwordHash: 'Mmadu51366414@',
   role: 'ADMIN',
   accountStatus: 'ACTIVE',
   balance: 0.0,
@@ -678,14 +678,16 @@ export function getUsers(): User[] {
   return getUsersLocal();
 }
 
-export function saveUsers(users: User[]) {
+export function saveUsers(users: User[], syncToCloud = true) {
   const map = new Map<string, User>();
   users.forEach((u) => {
     if (u.userId) map.set(u.userId, u);
   });
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
-  syncUsersToFirestore(merged);
+  if (syncToCloud) {
+    syncUsersToFirestore(merged);
+  }
   emitDataUpdateEvents('users');
 }
 
@@ -702,9 +704,11 @@ export function getTransactions(): Transaction[] {
   return getTransactionsLocal();
 }
 
-export function saveTransactions(txs: Transaction[]) {
+export function saveTransactions(txs: Transaction[], syncToCloud = true) {
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
-  syncTxsToFirestore(txs);
+  if (syncToCloud) {
+    syncTxsToFirestore(txs);
+  }
   emitDataUpdateEvents('txs');
 }
 
@@ -968,33 +972,104 @@ export function processMaturedInvestments() {
 
 // --- SERVER-SIDE FINANCIAL TRANSACTIONS ---
 
-export async function submitDeposit(user: User, amount: number, currency: string): Promise<Transaction> {
-  if (amount <= 0) {
+export async function submitDeposit(
+  user: User,
+  amount: number,
+  currency: string,
+  cryptoAmount?: number,
+  txHash?: string,
+  idempotencyKey?: string
+): Promise<Transaction> {
+  const cleanCurrency = currency.toUpperCase().trim();
+  const effectiveAmount = amount > 0 ? amount : (cryptoAmount || 0);
+
+  if (effectiveAmount <= 0) {
     throw new Error('Deposit amount must be greater than zero.');
   }
 
+  const cleanHash = txHash?.trim();
+  const txs = getTransactionsLocal();
+
+  // Financial Security 1: Enforce blockchain transaction hash uniqueness (prevents hash reuse)
+  if (cleanHash) {
+    const existingWithHash = txs.find(
+      (t) => t.txHash && t.txHash.toLowerCase() === cleanHash.toLowerCase()
+    );
+    if (existingWithHash) {
+      throw new Error(`This blockchain transaction hash (${cleanHash}) has already been registered on Vaultix Income.`);
+    }
+  }
+
+  // Financial Security 2: Idempotent submission lock
+  if (idempotencyKey) {
+    const existingIdemp = txs.find((t) => t.idempotencyKey === idempotencyKey);
+    if (existingIdemp) {
+      return existingIdemp;
+    }
+  }
+
+  // Financial Security 3: Prevent duplicate pending deposits within 15 seconds
+  const recentDuplicate = txs.find(
+    (t) =>
+      t.userId === user.userId &&
+      t.type === 'DEPOSIT' &&
+      t.status === 'PENDING' &&
+      t.currency === cleanCurrency &&
+      Math.abs(t.amount - effectiveAmount) < 0.0001 &&
+      Date.now() - new Date(t.timestamp).getTime() < 15000
+  );
+  if (recentDuplicate) {
+    return recentDuplicate;
+  }
+
   const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  // Calculate live USD valuation estimate
+  let estimatedUsd = effectiveAmount;
+  let livePrice = 1.0;
+  if (cleanCurrency !== 'USD' && cleanCurrency !== 'USDT') {
+    try {
+      livePrice = await cryptoPriceService.getPrice(cleanCurrency);
+      estimatedUsd = effectiveAmount * livePrice;
+    } catch {
+      // Fallback
+    }
+  }
+
   const newTx: Transaction = {
     id: txId,
     userId: user.userId,
     type: 'DEPOSIT',
-    amount: amount,
-    currency: currency,
+    amount: effectiveAmount,
+    currency: cleanCurrency,
+    cryptoAmount: cryptoAmount || (cleanCurrency !== 'USD' && cleanCurrency !== 'USDT' ? effectiveAmount : undefined),
+    cryptoAsset: cleanCurrency,
+    usdValuation: estimatedUsd,
+    priceUsed: livePrice,
+    priceTimestamp: new Date().toISOString(),
+    txHash: cleanHash || undefined,
+    idempotencyKey: idempotencyKey || undefined,
     status: 'PENDING',
     timestamp: new Date().toISOString(),
-    note: `Deposit request #${txId} of ${amount} ${currency} submitted! Status: PENDING`
+    note: cleanHash
+      ? `Deposit request #${txId} of ${effectiveAmount} ${cleanCurrency} (TxHash: ${cleanHash.slice(0, 16)}...) submitted! Status: PENDING`
+      : `Deposit request #${txId} of ${effectiveAmount} ${cleanCurrency} submitted! Status: PENDING`
   };
 
-  // MANDATORY: Await real Cloud Database write
+  // Direct Cloud Database write
   await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
 
-  const txs = getTransactionsLocal();
   txs.unshift(newTx);
   saveTransactions(txs);
   return newTx;
 }
 
-export async function approveDepositTransaction(adminUser: User, transactionId: string): Promise<{ user: User; tx: Transaction }> {
+export async function approveDepositTransaction(
+  adminUser: User,
+  transactionId: string,
+  verifiedCryptoAmount?: number,
+  verifiedPrice?: number
+): Promise<{ user: User; tx: Transaction }> {
   if (adminUser.role !== 'ADMIN') {
     throw new Error('UNAUTHORIZED: Admin privileges required to approve deposits.');
   }
@@ -1008,13 +1083,10 @@ export async function approveDepositTransaction(adminUser: User, transactionId: 
 
   const targetTx = { ...txs[txIdx] };
 
+  // Financial Security: Idempotent check — prevent duplicate approval attempts
   if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
   }
-
-  targetTx.status = 'APPROVED';
-  targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Deposit ${targetTx.id} approved! Credited $${targetTx.amount.toFixed(2)}.`;
 
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
@@ -1025,41 +1097,132 @@ export async function approveDepositTransaction(adminUser: User, transactionId: 
   const targetUser = { ...users[uIdx] };
   const oldBalance = targetUser.balance;
 
-  // Credit deposit principal
-  targetUser.balance += targetTx.amount;
-  targetUser.totalDeposits += targetTx.amount;
+  // 1. Calculate and lock in final USD Valuation
+  const cleanCurrency = (targetTx.currency || 'USDT').toUpperCase().trim();
+  const effectiveCryptoAmt = verifiedCryptoAmount || targetTx.cryptoAmount || targetTx.amount;
+  let finalPrice = verifiedPrice || targetTx.priceUsed || 1.0;
 
-  let bonusTx: Transaction | null = null;
-  // Check First Deposit Bonus Eligibility (Granted exactly ONCE)
+  if (cleanCurrency !== 'USD' && cleanCurrency !== 'USDT') {
+    try {
+      if (!verifiedPrice) {
+        finalPrice = await cryptoPriceService.getPrice(cleanCurrency);
+      }
+    } catch {
+      // Use fallback
+    }
+  } else {
+    finalPrice = 1.0;
+  }
+
+  const usdValuation = cleanCurrency === 'USD' || cleanCurrency === 'USDT'
+    ? effectiveCryptoAmt
+    : effectiveCryptoAmt * finalPrice;
+
+  targetTx.status = 'APPROVED';
+  targetTx.processedAt = new Date().toISOString();
+  targetTx.cryptoAmount = effectiveCryptoAmt;
+  targetTx.cryptoAsset = cleanCurrency;
+  targetTx.priceUsed = finalPrice;
+  targetTx.usdValuation = usdValuation;
+  targetTx.priceTimestamp = new Date().toISOString();
+  targetTx.note = `Deposit ${targetTx.id} approved! Credited $${usdValuation.toFixed(2)} (${effectiveCryptoAmt} ${cleanCurrency} @ $${finalPrice.toFixed(2)}).`;
+
+  // Credit user active balance and total deposits
+  targetUser.balance += usdValuation;
+  targetUser.totalDeposits += usdValuation;
+
+  const extraTransactionsToSave: Transaction[] = [];
+
+  // 2. Business Rule: First-Deposit Cashback (Exact 0.5% on first verified deposit, awarded strictly once per account)
   if (!targetUser.hasReceivedFirstDepositBonus) {
-    const isReferred = Boolean(targetUser.referredByUsername && targetUser.referredByUsername.trim().length > 0);
-    const bonusPercent = isReferred ? 3 : 2;
-    const bonusAmount = (targetTx.amount * bonusPercent) / 100;
+    const cashbackAmount = parseFloat((usdValuation * 0.005).toFixed(2));
+    targetUser.hasReceivedFirstDepositBonus = true;
 
-    if (bonusAmount > 0) {
-      targetUser.balance += bonusAmount;
-      targetUser.hasReceivedFirstDepositBonus = true;
+    if (cashbackAmount > 0) {
+      targetUser.balance += cashbackAmount;
 
-      bonusTx = {
-        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+      const cashbackTxId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+      const cashbackTx: Transaction = {
+        id: cashbackTxId,
         userId: targetUser.userId,
         type: 'FIRST_DEPOSIT_BONUS',
-        amount: bonusAmount,
+        amount: cashbackAmount,
         currency: 'USD',
         status: 'COMPLETED',
         timestamp: new Date().toISOString(),
         processedAt: new Date().toISOString(),
-        note: `First Deposit Bonus (${bonusPercent}% of $${targetTx.amount.toFixed(2)})`
+        relatedDepositId: targetTx.id,
+        note: `0.5% First-Deposit Cashback on Deposit #${targetTx.id} ($${cashbackAmount.toFixed(2)})`
       };
+      extraTransactionsToSave.push(cashbackTx);
+
+      targetTx.cashbackAwarded = true;
+      targetTx.cashbackRate = 0.005;
+      targetTx.cashbackAmount = cashbackAmount;
+      targetTx.cashbackTxId = cashbackTxId;
+    } else {
+      targetTx.cashbackAwarded = false;
+    }
+  } else {
+    // Subsequent deposits never receive cashback
+    targetTx.cashbackAwarded = false;
+  }
+
+  // 4. Business Rule: Referral Signup Bonuses ($3 for new user, $5 for direct referrer)
+  if ((targetUser.referredBy || targetUser.referredByUsername) && !targetUser.hasReceivedSignupBonus) {
+    targetUser.balance += 3.0;
+    targetUser.hasReceivedSignupBonus = true;
+
+    const userSignupBonusTx: Transaction = {
+      id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+      userId: targetUser.userId,
+      type: 'REFERRAL_REWARD',
+      amount: 3.0,
+      currency: 'USD',
+      status: 'COMPLETED',
+      timestamp: new Date().toISOString(),
+      processedAt: new Date().toISOString(),
+      note: `Referral Signup Welcome Bonus ($3.00)`
+    };
+    extraTransactionsToSave.push(userSignupBonusTx);
+
+    // Credit referrer user if found
+    const referrerIdx = users.findIndex(
+      (u) =>
+        (targetUser.referredBy && (u.userId === targetUser.referredBy || (u.referralCode && u.referralCode.toUpperCase() === targetUser.referredBy.toUpperCase()))) ||
+        (targetUser.referredByUsername && u.username.toLowerCase() === targetUser.referredByUsername.toLowerCase())
+    );
+
+    if (referrerIdx !== -1) {
+      const referrer = { ...users[referrerIdx] };
+      referrer.balance = (referrer.balance || 0) + 5.0;
+      referrer.referralEarnings = (referrer.referralEarnings || 0) + 5.0;
+
+      const referrerBonusTx: Transaction = {
+        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+        userId: referrer.userId,
+        type: 'REFERRAL_REWARD',
+        amount: 5.0,
+        currency: 'USD',
+        status: 'COMPLETED',
+        timestamp: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        note: `Referral Bonus for verified signup of @${targetUser.username} ($5.00)`
+      };
+      extraTransactionsToSave.push(referrerBonusTx);
+
+      users[referrerIdx] = referrer;
+      await setDoc(doc(db, 'users', referrer.userId), cleanFirestoreData(referrer), { merge: true });
     }
   }
 
-  // MANDATORY: Await direct Cloud Database writes
+  // Atomic Cloud Database Writes
   await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
   await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
-  if (bonusTx) {
-    await setDoc(doc(db, 'transactions', bonusTx.id), cleanFirestoreData(bonusTx));
-    txs.unshift(bonusTx);
+
+  for (const bonus of extraTransactionsToSave) {
+    await setDoc(doc(db, 'transactions', bonus.id), cleanFirestoreData(bonus));
+    txs.unshift(bonus);
   }
 
   txs[txIdx] = targetTx;
@@ -1188,10 +1351,32 @@ export async function submitWithdrawalRequest(
   currency: string,
   destinationAddress: string,
   destinationNetwork: string,
-  investmentId?: string
+  investmentId?: string,
+  idempotencyKey?: string
 ): Promise<Transaction> {
   if (amount <= 0) {
     throw new Error('Withdrawal amount must be greater than zero.');
+  }
+
+  const txs = getTransactionsLocal();
+
+  // Idempotency / Duplicate Check
+  if (idempotencyKey) {
+    const existing = txs.find((t) => t.idempotencyKey === idempotencyKey);
+    if (existing) return existing;
+  }
+
+  // Prevent duplicate withdrawal requests within 15 seconds
+  const recentDuplicate = txs.find(
+    (t) =>
+      t.userId === user.userId &&
+      t.type === 'WITHDRAWAL' &&
+      t.status === 'PENDING' &&
+      Math.abs(t.amount - amount) < 0.0001 &&
+      Date.now() - new Date(t.timestamp).getTime() < 15000
+  );
+  if (recentDuplicate) {
+    return recentDuplicate;
   }
 
   const users = getUsersLocal();
@@ -1224,17 +1409,20 @@ export async function submitWithdrawalRequest(
     timestamp: new Date().toISOString(),
     destinationAddress: destinationAddress,
     network: destinationNetwork,
+    idempotencyKey: idempotencyKey || undefined,
     note: `Withdrawal request #${txId} of $${amount.toFixed(2)} (Net: $${netAmount.toFixed(2)} after $${fee.toFixed(2)} fee) submitted! Status: PENDING`
   };
 
-  // MANDATORY: Await Cloud Database write for pending transaction
+  // Direct Cloud Database write for pending transaction
   await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
 
-  const txs = getTransactionsLocal();
   txs.unshift(newTx);
   saveTransactions(txs);
 
+  users[uIdx] = targetUser;
+  saveUsers(users);
   saveCurrentSession(targetUser);
+
   return newTx;
 }
 

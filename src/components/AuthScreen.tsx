@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
-import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, SYSTEM_ADMIN_ACCOUNT } from '../db';
+import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions } from '../db';
 import { auth, db, doc, setDoc, getDoc, collection, getDocs, query, where, isFirebaseConfigured, cleanFirestoreData } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
-import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft } from 'lucide-react';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, User as FirebaseUser } from 'firebase/auth';
+import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft, RefreshCw } from 'lucide-react';
 import { AmbientBackground } from './AmbientBackground';
 
 interface AuthScreenProps {
@@ -16,6 +16,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
   const [tab, setTab] = useState<'login' | 'register'>(initialTab);
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Register Form
   const [username, setUsername] = useState('');
@@ -28,6 +29,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   useEffect(() => {
     setTab(initialTab);
@@ -86,9 +88,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     }
 
     try {
-      // 1. Resolve email address for Firebase Authentication
-      let targetEmail = cleanId;
-      if (cleanId.toLowerCase() === 'vaultix_admin') {
+      // 1. Resolve email address for Firebase Authentication (case-insensitive)
+      let targetEmail = cleanId.toLowerCase();
+      if (
+        cleanId.toLowerCase() === 'vaultix_admin' ||
+        cleanId.toLowerCase() === 'admin' ||
+        cleanId.toLowerCase() === 'administrator'
+      ) {
         targetEmail = 'vaultixincometeam@outlook.com';
       } else if (!cleanId.includes('@')) {
         const localUsers = getUsers();
@@ -96,15 +102,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           (u) => u.username.toLowerCase() === cleanId.toLowerCase()
         );
         if (found && found.email) {
-          targetEmail = found.email;
+          targetEmail = found.email.toLowerCase();
         } else {
           try {
-            const q = query(collection(db, 'users'), where('username', '==', cleanId));
+            const q = query(collection(db, 'users'), where('username', '==', cleanId.toLowerCase()));
             const snap = await getDocs(q);
             if (!snap.empty) {
               const uData = snap.docs[0].data() as User;
               if (uData && uData.email) {
-                targetEmail = uData.email;
+                targetEmail = uData.email.toLowerCase();
               }
             }
           } catch {
@@ -128,19 +134,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           setError('Invalid login credentials. Please check your username/email and password.');
           return;
         } else if (authErr.code === 'auth/too-many-requests') {
-          setError('Too many failed attempts. Access to this account has been temporarily disabled. Please wait a moment and try again.');
+          setError('Too many failed attempts. Access has been temporarily restricted. Please wait a few moments or use Forgot Password to reset.');
           return;
         } else {
-          setError(`Authentication failed: ${authErr.message || authErr}`);
+          setError('Authentication failed. Please check your credentials or reset your password.');
           return;
         }
       }
 
       const uid = authUser.uid;
-      const userEmail = authUser.email || targetEmail;
+      const userEmail = (authUser.email || targetEmail).toLowerCase();
       const idTokenResult = await authUser.getIdTokenResult();
       const isUserAdmin =
-        userEmail.toLowerCase() === 'vaultixincometeam@outlook.com' ||
+        userEmail === 'vaultixincometeam@outlook.com' ||
         idTokenResult.claims.role === 'ADMIN' ||
         idTokenResult.claims.admin === true;
 
@@ -234,6 +240,48 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     }
   };
 
+  const handleForgotPassword = async () => {
+    setError(null);
+    setMessage(null);
+    const cleanId = loginIdentifier.trim();
+    if (!cleanId) {
+      setError('Please enter your email or username above to receive a password reset link.');
+      return;
+    }
+
+    let targetEmail = cleanId.toLowerCase();
+    if (
+      cleanId.toLowerCase() === 'vaultix_admin' ||
+      cleanId.toLowerCase() === 'admin' ||
+      cleanId.toLowerCase() === 'administrator'
+    ) {
+      targetEmail = 'vaultixincometeam@outlook.com';
+    } else if (!cleanId.includes('@')) {
+      const localUsers = getUsers();
+      const found = localUsers.find((u) => u.username.toLowerCase() === cleanId.toLowerCase());
+      if (found?.email) {
+        targetEmail = found.email.toLowerCase();
+      }
+    }
+
+    if (!targetEmail.includes('@') || !targetEmail.includes('.')) {
+      setError('Please enter a valid email address to receive password reset instructions.');
+      return;
+    }
+
+    setIsSendingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      setMessage(`Password reset email sent to ${targetEmail}! Please check your inbox and junk folder.`);
+      setError(null);
+    } catch (resetErr: any) {
+      console.error('Password reset error:', resetErr);
+      setError('Could not send password reset email. Please ensure the email address is registered.');
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -311,7 +359,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           username: 'vaultix_admin',
           fullName: 'Vaultix Administrator',
           email: 'vaultixincometeam@outlook.com',
-          passwordHash: 'Mmadu51366414@',
           role: 'ADMIN',
           accountStatus: 'ACTIVE',
           balance: 0,
@@ -328,29 +375,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         referrerUsername = referrerUser.username;
         referrerDisplayName = referrerUser.fullName || referrerUser.username;
       } else {
-        setError(`Invalid referral code "${referralCodeInput.trim()}" provided. Registration cancelled.`);
+        setError(`Invalid referral code "${referralCodeInput.trim()}" provided.`);
         return;
       }
     }
 
     let uid = '';
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
       uid = userCredential.user.uid;
     } catch (authErr: any) {
       if (authErr.code === 'auth/email-already-in-use') {
-        // If the email already exists in Auth (e.g. from an earlier interrupted attempt where the Firestore write was blocked),
-        // authenticate with the provided password to recover the session and create the Firestore document.
         try {
-          const signCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          const signCred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
           uid = signCred.user.uid;
         } catch {
-          setError('This email address is already registered in Firebase. Please log in instead.');
+          setError('This email address is already registered. Please log in to your account.');
           return;
         }
+      } else if (authErr.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters.');
+        return;
+      } else if (authErr.code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+        return;
       } else {
-        console.error('Firebase Auth registration error:', authErr);
-        setError(`Firebase Auth Registration Failed: ${authErr.message || authErr}. Please verify VITE_FIREBASE_API_KEY on Vercel.`);
+        console.error('Registration auth error:', authErr);
+        setError('Registration could not be completed. Please check your information and try again.');
         return;
       }
     }
@@ -429,8 +480,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       console.log('✅ [VAULTIX REGISTRATION] Document successfully written to Firestore:', `users/${newUser.userId}`);
     } catch (fsErr: any) {
       console.error('❌ [VAULTIX REGISTRATION ERROR] Firestore rejected document write:', fsErr);
-      console.error('Diagnostic state at time of rejection:', JSON.stringify(ruleEvaluationDiagnostics, null, 2));
-      setError(`Registration Failed: Could not write user document to Cloud Database (${fsErr.message || fsErr}). Check browser console for full rule diagnostic trace.`);
+      setError('Registration could not be completed at this time. Please check your connection and try again.');
       return;
     }
 
@@ -438,18 +488,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     currentUsers.push(newUser);
     saveUsers(currentUsers);
     saveCurrentSession(newUser);
-    onLoginSuccess(newUser);
 
-    setMessage(
-      referrerUsername
-        ? `Registration successful! Referral by @${referrerUsername} recorded.`
-        : 'Registration successful! Welcome to Vaultix Income.'
-    );
+    setMessage('Your account has been created successfully. Welcome to Vaultix Income!');
 
     setTimeout(() => {
       saveCurrentSession(newUser);
       onLoginSuccess(newUser);
-    }, 1000);
+    }, 1200);
   };
 
   return (
@@ -602,6 +647,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
                       required
                     />
                   </div>
+                </div>
+
+                <div className="flex justify-end -mt-1 mb-2">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={isSendingReset}
+                    className="text-[11px] font-semibold text-[#D4AF37] hover:text-amber-300 transition-colors cursor-pointer"
+                  >
+                    {isSendingReset ? 'Sending reset link...' : 'Forgot password?'}
+                  </button>
                 </div>
 
                 <button
