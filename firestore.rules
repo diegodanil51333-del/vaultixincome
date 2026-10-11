@@ -61,15 +61,23 @@ service cloud.firestore {
         !('password' in request.resource.data)
       ) || isAdmin();
 
-      // Normal users CANNOT modify financial fields, roles, account status, passwords, or userId.
-      // Only Admin can modify financial balances, roles, or approve statuses.
+      // Normal users CANNOT modify financial fields, roles, account status, passwords, or userId,
+      // EXCEPT when atomically subscribing to an investment plan (where available balance is deducted
+      // and totalInvestments increases by the exact identical positive amount without going negative).
       allow update: if isAdmin() || (
-        isOwner(userId) && 
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'balance', 'totalDeposits', 'totalInvestments', 'totalProfitLoss', 
-          'referralEarnings', 'bonusBalance', 'role', 'accountStatus', 
-          'passwordHash', 'password', 'userId'
-        ])
+        isOwner(userId) && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'balance', 'totalDeposits', 'totalInvestments', 'totalProfitLoss', 
+            'referralEarnings', 'bonusBalance', 'role', 'accountStatus', 
+            'passwordHash', 'password', 'userId'
+          ]) ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'totalInvestments']) &&
+            request.resource.data.balance >= 0 &&
+            resource.data.balance > request.resource.data.balance &&
+            (resource.data.balance - request.resource.data.balance) == (request.resource.data.totalInvestments - resource.data.totalInvestments)
+          )
+        )
       );
 
       // Only Admin can delete user documents
@@ -87,16 +95,25 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid
       );
       
-      // Normal users can ONLY submit their own PENDING deposit or withdrawal requests.
-      // Normal users CANNOT create approved transactions, reward transactions, or transactions for others.
+      // Normal users can ONLY submit their own PENDING deposit/withdrawal requests OR record active investment YIELD entries.
+      // Normal users CANNOT create approved deposits, unauthorized bonus transactions, or transactions for other accounts.
       allow create: if isAdmin() || (
         isAuthenticated() &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.status == 'PENDING' &&
         (
-          request.resource.data.type == 'DEPOSIT' || 
-          request.resource.data.type == 'WITHDRAWAL' || 
-          request.resource.data.type == 'BONUS_WITHDRAWAL'
+          (
+            request.resource.data.status == 'PENDING' &&
+            (
+              request.resource.data.type == 'DEPOSIT' || 
+              request.resource.data.type == 'WITHDRAWAL' || 
+              request.resource.data.type == 'BONUS_WITHDRAWAL'
+            )
+          ) ||
+          (
+            request.resource.data.status == 'COMPLETED' &&
+            request.resource.data.type == 'YIELD' &&
+            request.resource.data.amount > 0
+          )
         )
       );
       

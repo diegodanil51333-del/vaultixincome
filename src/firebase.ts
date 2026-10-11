@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, where, updateDoc, limit } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, where, updateDoc, limit, runTransaction } from 'firebase/firestore';
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 
 const metaEnv = (import.meta as unknown as { env: Record<string, string> }).env || {};
@@ -58,6 +58,7 @@ export function cleanFirestoreData<T extends Record<string, any>>(data: T): Reco
 export {
   setPersistence, browserLocalPersistence, onAuthStateChanged,
   doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, where, updateDoc, limit,
+  runTransaction,
   ref, getDownloadURL
 };
 export type { FirebaseUser };

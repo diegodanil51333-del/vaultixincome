@@ -1,5 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
-import { auth, db, doc, setDoc, getDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where } from './firebase';
+import { auth, db, doc, setDoc, getDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where, runTransaction } from './firebase';
 import { cryptoPriceService } from './services/cryptoPriceService';
 
 const USERS_KEY = 'vaultix_users_v13';
@@ -1081,6 +1081,12 @@ export async function submitDeposit(
   return newTx;
 }
 
+// Permanent set of completed financial operations to prevent duplicate execution across retries
+const completedTransactionOperations = new Set<string>();
+
+// In-memory set to prevent concurrent executions within the same client session
+const activeDepositApprovals = new Set<string>();
+
 export async function approveDepositTransaction(
   adminUser: User,
   transactionId: string,
@@ -1091,211 +1097,248 @@ export async function approveDepositTransaction(
     throw new Error('UNAUTHORIZED: Admin privileges required to approve deposits.');
   }
 
-  const txs = getTransactionsLocal();
-  const txIdx = txs.findIndex((t) => t.id === transactionId);
-
-  if (txIdx === -1) {
-    throw new Error('Transaction not found.');
+  if (completedTransactionOperations.has(transactionId)) {
+    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} has already been approved and credited.`);
   }
 
-  const targetTx = { ...txs[txIdx] };
-
-  // Financial Security: Idempotent check — prevent duplicate approval attempts
-  if (targetTx.status !== 'PENDING') {
-    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
+  if (activeDepositApprovals.has(transactionId)) {
+    throw new Error(`CONCURRENT OPERATION: Approval for deposit ${transactionId} is currently being processed.`);
   }
+  activeDepositApprovals.add(transactionId);
 
-  // Direct Firestore Cloud Check: Ensure no concurrent admin has approved this transaction
   try {
-    const cloudTxDoc = await getDoc(doc(db, 'transactions', transactionId));
-    if (cloudTxDoc.exists()) {
-      const cloudTxData = cloudTxDoc.data() as Transaction;
-      if (cloudTxData.status && cloudTxData.status !== 'PENDING') {
-        targetTx.status = cloudTxData.status;
-        txs[txIdx] = { ...targetTx, ...cloudTxData };
-        saveTransactions(txs);
-        throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status} in cloud ledger.`);
+    const txs = getTransactionsLocal();
+    const txIdx = txs.findIndex((t) => t.id === transactionId);
+
+    if (txIdx === -1) {
+      throw new Error('Transaction not found.');
+    }
+
+    const localTx = txs[txIdx];
+    if (localTx.status !== 'PENDING') {
+      completedTransactionOperations.add(transactionId);
+      throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${localTx.status}.`);
+    }
+
+    const cleanCurrency = (localTx.currency || 'USDT').toUpperCase().trim();
+    const effectiveCryptoAmt = verifiedCryptoAmount || localTx.cryptoAmount || localTx.amount;
+    let finalPrice = verifiedPrice || localTx.priceUsed || 1.0;
+
+    if (cleanCurrency !== 'USD' && cleanCurrency !== 'USDT') {
+      try {
+        if (!verifiedPrice) {
+          finalPrice = await cryptoPriceService.getPrice(cleanCurrency);
+        }
+      } catch {
+        // Use fallback
       }
-    }
-  } catch (err: any) {
-    if (err.message && err.message.includes('TRANSACTION TERMINAL')) {
-      throw err;
-    }
-  }
-
-  const users = getUsersLocal();
-  const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
-  if (uIdx === -1) {
-    throw new Error('Target user account not found.');
-  }
-
-  let targetUser = { ...users[uIdx] };
-  try {
-    const userDocSnap = await getDoc(doc(db, 'users', targetTx.userId));
-    if (userDocSnap.exists()) {
-      const cloudUserData = userDocSnap.data() as User;
-      if (cloudUserData) {
-        targetUser = { ...targetUser, ...cloudUserData };
-      }
-    }
-  } catch (err) {
-    // Continue with local
-  }
-  const oldBalance = targetUser.balance;
-
-  // 1. Calculate and lock in final USD Valuation
-  const cleanCurrency = (targetTx.currency || 'USDT').toUpperCase().trim();
-  const effectiveCryptoAmt = verifiedCryptoAmount || targetTx.cryptoAmount || targetTx.amount;
-  let finalPrice = verifiedPrice || targetTx.priceUsed || 1.0;
-
-  if (cleanCurrency !== 'USD' && cleanCurrency !== 'USDT') {
-    try {
-      if (!verifiedPrice) {
-        finalPrice = await cryptoPriceService.getPrice(cleanCurrency);
-      }
-    } catch {
-      // Use fallback
-    }
-  } else {
-    finalPrice = 1.0;
-  }
-
-  const usdValuation = cleanCurrency === 'USD' || cleanCurrency === 'USDT'
-    ? effectiveCryptoAmt
-    : effectiveCryptoAmt * finalPrice;
-
-  targetTx.status = 'APPROVED';
-  targetTx.processedAt = new Date().toISOString();
-  targetTx.cryptoAmount = effectiveCryptoAmt;
-  targetTx.cryptoAsset = cleanCurrency;
-  targetTx.priceUsed = finalPrice;
-  targetTx.usdValuation = usdValuation;
-  targetTx.priceTimestamp = new Date().toISOString();
-  targetTx.note = `Deposit ${targetTx.id} approved! Credited $${usdValuation.toFixed(2)} (${effectiveCryptoAmt} ${cleanCurrency} @ $${finalPrice.toFixed(2)}).`;
-
-  // Credit user active balance and total deposits
-  targetUser.balance += usdValuation;
-  targetUser.totalDeposits += usdValuation;
-
-  const extraTransactionsToSave: Transaction[] = [];
-
-  // 2. Business Rule: First-Deposit Cashback (Exact 0.5% on first verified deposit, awarded strictly once per account)
-  if (!targetUser.hasReceivedFirstDepositBonus) {
-    const cashbackAmount = parseFloat((usdValuation * 0.005).toFixed(2));
-    targetUser.hasReceivedFirstDepositBonus = true;
-
-    if (cashbackAmount > 0) {
-      targetUser.balance += cashbackAmount;
-
-      const cashbackTxId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
-      const cashbackTx: Transaction = {
-        id: cashbackTxId,
-        userId: targetUser.userId,
-        type: 'FIRST_DEPOSIT_BONUS',
-        amount: cashbackAmount,
-        currency: 'USD',
-        status: 'COMPLETED',
-        timestamp: new Date().toISOString(),
-        processedAt: new Date().toISOString(),
-        relatedDepositId: targetTx.id,
-        note: `0.5% First-Deposit Cashback on Deposit #${targetTx.id} ($${cashbackAmount.toFixed(2)})`
-      };
-      extraTransactionsToSave.push(cashbackTx);
-
-      targetTx.cashbackAwarded = true;
-      targetTx.cashbackRate = 0.005;
-      targetTx.cashbackAmount = cashbackAmount;
-      targetTx.cashbackTxId = cashbackTxId;
     } else {
-      targetTx.cashbackAwarded = false;
+      finalPrice = 1.0;
     }
-  } else {
-    // Subsequent deposits never receive cashback
-    targetTx.cashbackAwarded = false;
-  }
 
-  // 4. Business Rule: Referral Signup Bonuses ($3 for new user, $5 for direct referrer)
-  if ((targetUser.referredBy || targetUser.referredByUsername) && !targetUser.hasReceivedSignupBonus) {
-    targetUser.balance += 3.0;
-    targetUser.hasReceivedSignupBonus = true;
+    const usdValuation = cleanCurrency === 'USD' || cleanCurrency === 'USDT'
+      ? effectiveCryptoAmt
+      : effectiveCryptoAmt * finalPrice;
 
-    const userSignupBonusTx: Transaction = {
-      id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-      userId: targetUser.userId,
-      type: 'REFERRAL_REWARD',
-      amount: 3.0,
-      currency: 'USD',
-      status: 'COMPLETED',
-      timestamp: new Date().toISOString(),
-      processedAt: new Date().toISOString(),
-      note: `Referral Signup Welcome Bonus ($3.00)`
-    };
-    extraTransactionsToSave.push(userSignupBonusTx);
+    // ATOMIC FIRESTORE TRANSACTION:
+    // Guarantees transaction is PENDING in cloud ledger before applying ANY balance credit,
+    // updates status to APPROVED atomically, and generates cashback/bonuses idempotently.
+    const atomicResult = await runTransaction(db, async (firestoreTx) => {
+      const txRef = doc(db, 'transactions', transactionId);
+      const cloudTxDoc = await firestoreTx.get(txRef);
 
-    // Credit referrer user if found
-    const referrerIdx = users.findIndex(
-      (u) =>
-        (targetUser.referredBy && (u.userId === targetUser.referredBy || (u.referralCode && u.referralCode.toUpperCase() === targetUser.referredBy.toUpperCase()))) ||
-        (targetUser.referredByUsername && u.username.toLowerCase() === targetUser.referredByUsername.toLowerCase())
-    );
+      if (!cloudTxDoc.exists()) {
+        throw new Error(`TRANSACTION NOT FOUND: Transaction ${transactionId} does not exist in cloud database.`);
+      }
 
-    if (referrerIdx !== -1) {
-      const referrer = { ...users[referrerIdx] };
-      referrer.balance = (referrer.balance || 0) + 5.0;
-      referrer.referralEarnings = (referrer.referralEarnings || 0) + 5.0;
+      const cloudTxData = cloudTxDoc.data() as Transaction;
+      if (cloudTxData.status !== 'PENDING') {
+        throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status}.`);
+      }
 
-      const referrerBonusTx: Transaction = {
-        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-        userId: referrer.userId,
-        type: 'REFERRAL_REWARD',
-        amount: 5.0,
-        currency: 'USD',
-        status: 'COMPLETED',
-        timestamp: new Date().toISOString(),
+      const userRef = doc(db, 'users', cloudTxData.userId);
+      const userDoc = await firestoreTx.get(userRef);
+
+      if (!userDoc.exists()) {
+        throw new Error(`USER NOT FOUND: Target user account ${cloudTxData.userId} does not exist in cloud database.`);
+      }
+
+      const cloudUserData = userDoc.data() as User;
+      const targetUser: User = { ...cloudUserData };
+      const oldBalance = targetUser.balance || 0;
+
+      const targetTx: Transaction = {
+        ...cloudTxData,
+        status: 'APPROVED',
         processedAt: new Date().toISOString(),
-        note: `Referral Bonus for verified signup of @${targetUser.username} ($5.00)`
+        cryptoAmount: effectiveCryptoAmt,
+        cryptoAsset: cleanCurrency,
+        priceUsed: finalPrice,
+        usdValuation: usdValuation,
+        priceTimestamp: new Date().toISOString(),
+        note: `Deposit ${transactionId} approved! Credited $${usdValuation.toFixed(2)} (${effectiveCryptoAmt} ${cleanCurrency} @ $${finalPrice.toFixed(2)}).`
       };
-      extraTransactionsToSave.push(referrerBonusTx);
 
-      users[referrerIdx] = referrer;
-      await setDoc(doc(db, 'users', referrer.userId), cleanFirestoreData(referrer), { merge: true });
+      // Credit user active balance and total deposits
+      targetUser.balance = (targetUser.balance || 0) + usdValuation;
+      targetUser.totalDeposits = (targetUser.totalDeposits || 0) + usdValuation;
+
+      const extraTransactions: Transaction[] = [];
+
+      // First-Deposit Cashback (Exact 0.5% on first deposit, awarded strictly once)
+      if (!targetUser.hasReceivedFirstDepositBonus) {
+        const cashbackAmount = parseFloat((usdValuation * 0.005).toFixed(2));
+        targetUser.hasReceivedFirstDepositBonus = true;
+
+        if (cashbackAmount > 0) {
+          targetUser.balance += cashbackAmount;
+
+          const cashbackTxId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+          const cashbackTx: Transaction = {
+            id: cashbackTxId,
+            userId: targetUser.userId,
+            type: 'FIRST_DEPOSIT_BONUS',
+            amount: cashbackAmount,
+            currency: 'USD',
+            status: 'COMPLETED',
+            timestamp: new Date().toISOString(),
+            processedAt: new Date().toISOString(),
+            relatedDepositId: targetTx.id,
+            note: `0.5% First-Deposit Cashback on Deposit #${targetTx.id} ($${cashbackAmount.toFixed(2)})`
+          };
+          extraTransactions.push(cashbackTx);
+
+          targetTx.cashbackAwarded = true;
+          targetTx.cashbackRate = 0.005;
+          targetTx.cashbackAmount = cashbackAmount;
+          targetTx.cashbackTxId = cashbackTxId;
+        } else {
+          targetTx.cashbackAwarded = false;
+        }
+      } else {
+        targetTx.cashbackAwarded = false;
+      }
+
+      // Referral Signup Bonuses ($3 for new user, $5 for direct referrer)
+      let referrerUserToSave: User | null = null;
+      if ((targetUser.referredBy || targetUser.referredByUsername) && !targetUser.hasReceivedSignupBonus) {
+        targetUser.balance += 3.0;
+        targetUser.hasReceivedSignupBonus = true;
+
+        const userSignupBonusTx: Transaction = {
+          id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+          userId: targetUser.userId,
+          type: 'REFERRAL_REWARD',
+          amount: 3.0,
+          currency: 'USD',
+          status: 'COMPLETED',
+          timestamp: new Date().toISOString(),
+          processedAt: new Date().toISOString(),
+          note: `Referral Signup Welcome Bonus ($3.00)`
+        };
+        extraTransactions.push(userSignupBonusTx);
+
+        // Fetch referrer document inside transaction if possible
+        const referrerId = targetUser.referredBy;
+        if (referrerId) {
+          const referrerRef = doc(db, 'users', referrerId);
+          const referrerDoc = await firestoreTx.get(referrerRef);
+          if (referrerDoc.exists()) {
+            const referrerData = referrerDoc.data() as User;
+            referrerUserToSave = { ...referrerData };
+            referrerUserToSave.balance = (referrerUserToSave.balance || 0) + 5.0;
+            referrerUserToSave.referralEarnings = (referrerUserToSave.referralEarnings || 0) + 5.0;
+
+            const referrerBonusTx: Transaction = {
+              id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+              userId: referrerUserToSave.userId,
+              type: 'REFERRAL_REWARD',
+              amount: 5.0,
+              currency: 'USD',
+              status: 'COMPLETED',
+              timestamp: new Date().toISOString(),
+              processedAt: new Date().toISOString(),
+              note: `Referral Bonus for verified signup of @${targetUser.username} ($5.00)`
+            };
+            extraTransactions.push(referrerBonusTx);
+            firestoreTx.set(referrerRef, cleanFirestoreData(referrerUserToSave), { merge: true });
+          }
+        }
+      }
+
+      // Commit atomic writes
+      firestoreTx.set(txRef, cleanFirestoreData(targetTx));
+      firestoreTx.set(userRef, cleanFirestoreData(targetUser));
+
+      for (const bonus of extraTransactions) {
+        const bonusRef = doc(db, 'transactions', bonus.id);
+        firestoreTx.set(bonusRef, cleanFirestoreData(bonus));
+      }
+
+      return {
+        user: targetUser,
+        tx: targetTx,
+        extraTransactions,
+        referrerUserToSave,
+        oldBalance
+      };
+    });
+
+    // Synchronize local cache with the verified atomic database outcome
+    const updatedUsers = getUsersLocal();
+    const uIndex = updatedUsers.findIndex((u) => u.userId === atomicResult.user.userId);
+    if (uIndex !== -1) {
+      updatedUsers[uIndex] = atomicResult.user;
+    } else {
+      updatedUsers.push(atomicResult.user);
     }
+
+    if (atomicResult.referrerUserToSave) {
+      const rIndex = updatedUsers.findIndex((u) => u.userId === atomicResult.referrerUserToSave!.userId);
+      if (rIndex !== -1) {
+        updatedUsers[rIndex] = atomicResult.referrerUserToSave;
+      }
+    }
+    saveUsers(updatedUsers);
+
+    const updatedTxs = getTransactionsLocal();
+    const tIndex = updatedTxs.findIndex((t) => t.id === atomicResult.tx.id);
+    if (tIndex !== -1) {
+      updatedTxs[tIndex] = atomicResult.tx;
+    } else {
+      updatedTxs.unshift(atomicResult.tx);
+    }
+
+    for (const bonus of atomicResult.extraTransactions) {
+      if (!updatedTxs.some((t) => t.id === bonus.id)) {
+        updatedTxs.unshift(bonus);
+      }
+    }
+    saveTransactions(updatedTxs);
+
+    const currentSession = getCurrentSession();
+    if (currentSession?.userId === atomicResult.user.userId) {
+      saveCurrentSession(atomicResult.user);
+    }
+
+    const logs = getAuditLogs();
+    logs.unshift({
+      id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminId: adminUser.userId,
+      action: 'DEPOSIT_APPROVED',
+      targetUserId: atomicResult.user.userId,
+      targetUsername: atomicResult.user.username,
+      transactionId: atomicResult.tx.id,
+      previousValue: `$${atomicResult.oldBalance.toFixed(2)}`,
+      newValue: `$${atomicResult.user.balance.toFixed(2)}`,
+      timestamp: new Date().toISOString()
+    });
+    saveAuditLogs(logs);
+    completedTransactionOperations.add(transactionId);
+    return { user: atomicResult.user, tx: atomicResult.tx };
+  } finally {
+    activeDepositApprovals.delete(transactionId);
   }
-
-  // Atomic Cloud Database Writes
-  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
-  await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
-
-  for (const bonus of extraTransactionsToSave) {
-    await setDoc(doc(db, 'transactions', bonus.id), cleanFirestoreData(bonus));
-    txs.unshift(bonus);
-  }
-
-  txs[txIdx] = targetTx;
-  users[uIdx] = targetUser;
-  saveUsers(users);
-  saveTransactions(txs);
-
-  const currentSession = getCurrentSession();
-  if (currentSession?.userId === targetUser.userId) {
-    saveCurrentSession(targetUser);
-  }
-
-  const logs = getAuditLogs();
-  logs.unshift({
-    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
-    adminId: adminUser.userId,
-    action: 'DEPOSIT_APPROVED',
-    targetUserId: targetUser.userId,
-    targetUsername: targetUser.username,
-    transactionId: targetTx.id,
-    previousValue: `$${oldBalance.toFixed(2)}`,
-    newValue: `$${targetUser.balance.toFixed(2)}`,
-    timestamp: new Date().toISOString()
-  });
-  saveAuditLogs(logs);
-
-  return { user: targetUser, tx: targetTx };
 }
 
 export async function rejectDepositTransaction(adminUser: User, transactionId: string, reason?: string): Promise<Transaction> {
@@ -1425,22 +1468,7 @@ export async function submitWithdrawalRequest(
     return recentDuplicate;
   }
 
-  const users = getUsersLocal();
-  const uIdx = users.findIndex((u) => u.userId === user.userId);
-  if (uIdx === -1) {
-    throw new Error('User account not found.');
-  }
-
-  const targetUser = { ...users[uIdx] };
-  if (targetUser.balance < amount && !investmentId) {
-    throw new Error(`Insufficient funds. Available balance: $${targetUser.balance.toFixed(2)}.`);
-  }
-
   const { fee, netAmount } = calculateWithdrawalFee(amount);
-
-  if (!investmentId) {
-    targetUser.balance -= amount;
-  }
 
   const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
   const newTx: Transaction = {
@@ -1459,13 +1487,46 @@ export async function submitWithdrawalRequest(
     note: `Withdrawal request #${txId} of $${amount.toFixed(2)} (Net: $${netAmount.toFixed(2)} after $${fee.toFixed(2)} fee) submitted! Status: PENDING`
   };
 
-  // Direct Cloud Database write for pending transaction
-  await setDoc(doc(db, 'transactions', newTx.id), cleanFirestoreData(newTx));
+  // ATOMIC FIRESTORE TRANSACTION:
+  // Verifies cloud user balance and reserves/deducts amount while creating the pending transaction.
+  const atomicResult = await runTransaction(db, async (firestoreTx) => {
+    const userRef = doc(db, 'users', user.userId);
+    const userDoc = await firestoreTx.get(userRef);
 
+    if (!userDoc.exists()) {
+      throw new Error('User account not found in cloud database.');
+    }
+
+    const cloudUser = userDoc.data() as User;
+    const currentBalance = typeof cloudUser.balance === 'number' ? cloudUser.balance : 0;
+
+    if (!investmentId && currentBalance < amount) {
+      throw new Error(`Insufficient funds. Available balance: $${currentBalance.toFixed(2)}.`);
+    }
+
+    const updatedUser: User = {
+      ...cloudUser,
+      balance: investmentId ? currentBalance : Math.max(0, currentBalance - amount)
+    };
+
+    const txRef = doc(db, 'transactions', newTx.id);
+    firestoreTx.set(txRef, cleanFirestoreData(newTx));
+    firestoreTx.set(userRef, cleanFirestoreData(updatedUser));
+
+    return { user: updatedUser, tx: newTx };
+  });
+
+  const targetUser = atomicResult.user;
   txs.unshift(newTx);
   saveTransactions(txs);
 
-  users[uIdx] = targetUser;
+  const users = getUsersLocal();
+  const uIdx = users.findIndex((u) => u.userId === user.userId);
+  if (uIdx !== -1) {
+    users[uIdx] = targetUser;
+  } else {
+    users.push(targetUser);
+  }
   saveUsers(users);
   saveCurrentSession(targetUser);
 
@@ -1523,67 +1584,81 @@ export async function submitBonusWithdrawalRequest(
   return newTx;
 }
 
+// In-memory set to prevent concurrent withdrawal approvals
+const activeWithdrawalApprovals = new Set<string>();
+
 export async function approveWithdrawalTransaction(adminUser: User, transactionId: string): Promise<{ user: User; tx: Transaction }> {
   if (adminUser.role !== 'ADMIN') {
     throw new Error('UNAUTHORIZED: Admin privileges required.');
   }
 
-  const txs = getTransactionsLocal();
-  const txIdx = txs.findIndex((t) => t.id === transactionId);
-
-  if (txIdx === -1) {
-    throw new Error('Transaction not found.');
+  if (activeWithdrawalApprovals.has(transactionId)) {
+    throw new Error(`CONCURRENT OPERATION: Withdrawal ${transactionId} is currently being processed.`);
   }
+  activeWithdrawalApprovals.add(transactionId);
 
-  const targetTx = { ...txs[txIdx] };
-  if (targetTx.status !== 'PENDING') {
-    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
-  }
-
-  // Direct Firestore Cloud Check: Ensure no concurrent admin has processed this withdrawal
   try {
-    const cloudTxDoc = await getDoc(doc(db, 'transactions', transactionId));
-    if (cloudTxDoc.exists()) {
-      const cloudTxData = cloudTxDoc.data() as Transaction;
-      if (cloudTxData.status && cloudTxData.status !== 'PENDING') {
-        targetTx.status = cloudTxData.status;
-        txs[txIdx] = { ...targetTx, ...cloudTxData };
-        saveTransactions(txs);
-        throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status} in cloud ledger.`);
+    const txs = getTransactionsLocal();
+    const txIdx = txs.findIndex((t) => t.id === transactionId);
+
+    if (txIdx === -1) {
+      throw new Error('Transaction not found.');
+    }
+
+    const localTx = txs[txIdx];
+    if (localTx.status !== 'PENDING') {
+      throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${localTx.status}.`);
+    }
+
+    // Atomic Cloud Execution: Ensure withdrawal is still PENDING before marking APPROVED
+    const atomicResult = await runTransaction(db, async (firestoreTx) => {
+      const txRef = doc(db, 'transactions', transactionId);
+      const cloudTxDoc = await firestoreTx.get(txRef);
+
+      if (!cloudTxDoc.exists()) {
+        throw new Error(`TRANSACTION NOT FOUND: Transaction ${transactionId} does not exist in cloud database.`);
       }
-    }
-  } catch (err: any) {
-    if (err.message && err.message.includes('TRANSACTION TERMINAL')) {
-      throw err;
-    }
+
+      const cloudTxData = cloudTxDoc.data() as Transaction;
+      if (cloudTxData.status !== 'PENDING') {
+        throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status}.`);
+      }
+
+      const updatedTx: Transaction = {
+        ...cloudTxData,
+        status: 'APPROVED',
+        processedAt: new Date().toISOString(),
+        note: `Withdrawal ${transactionId} approved and processed!`
+      };
+
+      firestoreTx.set(txRef, cleanFirestoreData(updatedTx));
+
+      return { tx: updatedTx };
+    });
+
+    const targetTx = atomicResult.tx;
+    txs[txIdx] = targetTx;
+    saveTransactions(txs);
+
+    const users = getUsersLocal();
+    const targetUser = users.find((u) => u.userId === targetTx.userId) || { ...adminUser };
+
+    const logs = getAuditLogs();
+    logs.unshift({
+      id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminId: adminUser.userId,
+      action: 'WITHDRAWAL_APPROVED',
+      targetUserId: targetTx.userId,
+      targetUsername: targetUser.username || targetTx.userId,
+      transactionId: targetTx.id,
+      timestamp: new Date().toISOString()
+    });
+    saveAuditLogs(logs);
+
+    return { user: targetUser, tx: targetTx };
+  } finally {
+    activeWithdrawalApprovals.delete(transactionId);
   }
-
-  targetTx.status = 'APPROVED';
-  targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Withdrawal ${targetTx.id} approved and processed!`;
-
-  // MANDATORY: Await Cloud Database write
-  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
-
-  txs[txIdx] = targetTx;
-  saveTransactions(txs);
-
-  const users = getUsersLocal();
-  const targetUser = users.find((u) => u.userId === targetTx.userId) || { ...adminUser };
-
-  const logs = getAuditLogs();
-  logs.unshift({
-    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
-    adminId: adminUser.userId,
-    action: 'WITHDRAWAL_APPROVED',
-    targetUserId: targetTx.userId,
-    targetUsername: targetUser.username || targetTx.userId,
-    transactionId: targetTx.id,
-    timestamp: new Date().toISOString()
-  });
-  saveAuditLogs(logs);
-
-  return { user: targetUser, tx: targetTx };
 }
 
 export async function cancelWithdrawalTransaction(adminUser: User, transactionId: string, reason?: string): Promise<{ user: User; tx: Transaction }> {
@@ -1591,68 +1666,107 @@ export async function cancelWithdrawalTransaction(adminUser: User, transactionId
     throw new Error('UNAUTHORIZED: Admin privileges required.');
   }
 
-  const txs = getTransactionsLocal();
-  const txIdx = txs.findIndex((t) => t.id === transactionId);
-
-  if (txIdx === -1) {
-    throw new Error('Transaction not found.');
+  if (activeWithdrawalApprovals.has(transactionId)) {
+    throw new Error(`CONCURRENT OPERATION: Withdrawal ${transactionId} is currently being processed.`);
   }
+  activeWithdrawalApprovals.add(transactionId);
 
-  const targetTx = { ...txs[txIdx] };
-  if (targetTx.status !== 'PENDING') {
-    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
-  }
+  try {
+    const txs = getTransactionsLocal();
+    const txIdx = txs.findIndex((t) => t.id === transactionId);
 
-  targetTx.status = 'REJECTED';
-  targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Withdrawal ${targetTx.id} cancelled. Principal refunded.`;
-
-  const users = getUsersLocal();
-  const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
-  let targetUser = uIdx !== -1 ? { ...users[uIdx] } : null;
-
-  if (targetUser) {
-    if (targetTx.type === 'BONUS_WITHDRAWAL') {
-      targetUser.bonusBalance = (targetUser.bonusBalance || 0) + targetTx.amount;
-      targetUser.referralEarnings = (targetUser.referralEarnings || 0) + targetTx.amount;
-      targetTx.note = `Bonus Withdrawal ${targetTx.id} cancelled. $${targetTx.amount.toFixed(2)} refunded to Bonus Wallet.`;
-    } else {
-      targetUser.balance += targetTx.amount;
-      targetTx.note = `Withdrawal ${targetTx.id} cancelled. $${targetTx.amount.toFixed(2)} refunded to Active Balance.`;
+    if (txIdx === -1) {
+      throw new Error('Transaction not found.');
     }
-  }
 
-  // MANDATORY: Await Cloud Database writes
-  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
-  if (targetUser) {
-    await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
-    users[uIdx] = targetUser;
-    saveUsers(users);
-
-    const currentSession = getCurrentSession();
-    if (currentSession?.userId === targetUser.userId) {
-      saveCurrentSession(targetUser);
+    const localTx = txs[txIdx];
+    if (localTx.status !== 'PENDING') {
+      throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${localTx.status}.`);
     }
+
+    // Atomic Cloud Execution: Ensure withdrawal is still PENDING before refunding principal
+    const atomicResult = await runTransaction(db, async (firestoreTx) => {
+      const txRef = doc(db, 'transactions', transactionId);
+      const cloudTxDoc = await firestoreTx.get(txRef);
+
+      if (!cloudTxDoc.exists()) {
+        throw new Error(`TRANSACTION NOT FOUND: Transaction ${transactionId} does not exist in cloud database.`);
+      }
+
+      const cloudTxData = cloudTxDoc.data() as Transaction;
+      if (cloudTxData.status !== 'PENDING') {
+        throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status}.`);
+      }
+
+      const userRef = doc(db, 'users', cloudTxData.userId);
+      const userDoc = await firestoreTx.get(userRef);
+
+      let updatedUser: User | null = null;
+      if (userDoc.exists()) {
+        const cloudUser = userDoc.data() as User;
+        updatedUser = { ...cloudUser };
+
+        if (cloudTxData.type === 'BONUS_WITHDRAWAL') {
+          updatedUser.bonusBalance = (updatedUser.bonusBalance || 0) + cloudTxData.amount;
+          updatedUser.referralEarnings = (updatedUser.referralEarnings || 0) + cloudTxData.amount;
+        } else {
+          updatedUser.balance = (updatedUser.balance || 0) + cloudTxData.amount;
+        }
+
+        firestoreTx.set(userRef, cleanFirestoreData(updatedUser));
+      }
+
+      const updatedTx: Transaction = {
+        ...cloudTxData,
+        status: 'REJECTED',
+        processedAt: new Date().toISOString(),
+        note: `Withdrawal ${transactionId} cancelled. Principal refunded.`
+      };
+
+      firestoreTx.set(txRef, cleanFirestoreData(updatedTx));
+
+      return { tx: updatedTx, user: updatedUser };
+    });
+
+    const targetTx = atomicResult.tx;
+    txs[txIdx] = targetTx;
+    saveTransactions(txs);
+
+    const users = getUsersLocal();
+    const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
+    let targetUser = atomicResult.user || (uIdx !== -1 ? users[uIdx] : null);
+
+    if (targetUser && uIdx !== -1) {
+      users[uIdx] = targetUser;
+      saveUsers(users);
+
+      const currentSession = getCurrentSession();
+      if (currentSession?.userId === targetUser.userId) {
+        saveCurrentSession(targetUser);
+      }
+    }
+
+    const logs = getAuditLogs();
+    logs.unshift({
+      id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminId: adminUser.userId,
+      action: 'WITHDRAWAL_REJECTED',
+      targetUserId: targetTx.userId,
+      targetUsername: targetUser ? targetUser.username : targetTx.userId,
+      transactionId: targetTx.id,
+      reason: reason || 'Cancelled',
+      timestamp: new Date().toISOString()
+    });
+    saveAuditLogs(logs);
+
+    return { user: targetUser || adminUser, tx: targetTx };
+  } finally {
+    activeWithdrawalApprovals.delete(transactionId);
   }
-
-  txs[txIdx] = targetTx;
-  saveTransactions(txs);
-
-  const logs = getAuditLogs();
-  logs.unshift({
-    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
-    adminId: adminUser.userId,
-    action: 'WITHDRAWAL_REJECTED',
-    targetUserId: targetTx.userId,
-    targetUsername: targetUser ? targetUser.username : targetTx.userId,
-    transactionId: targetTx.id,
-    reason: reason || 'Cancelled',
-    timestamp: new Date().toISOString()
-  });
-  saveAuditLogs(logs);
-
-  return { user: targetUser || adminUser, tx: targetTx };
 }
+
+// In-memory set to prevent concurrent investment subscriptions for the same user
+const activeInvestmentSubscriptions = new Set<string>();
 
 export async function subscribeInvestmentPlan(
   user: User,
@@ -1673,115 +1787,118 @@ export async function subscribeInvestmentPlan(
     throw new Error(`Amount must be between $${plan.minDeposit.toLocaleString()} and $${plan.maxDeposit.toLocaleString()} for ${plan.name}.`);
   }
 
-  // Fetch target user from local & cloud database to verify current available balance
-  const users = getUsersLocal();
-  const uIdx = users.findIndex((u) => u.userId === user.userId);
-  if (uIdx === -1) {
-    throw new Error('User account not found.');
+  if (activeInvestmentSubscriptions.has(user.userId)) {
+    throw new Error('CONCURRENT OPERATION: An investment subscription is already in progress for this account. Please wait.');
   }
-
-  let targetUser = { ...users[uIdx] };
+  activeInvestmentSubscriptions.add(user.userId);
 
   try {
-    const userDocSnap = await getDoc(doc(db, 'users', user.userId));
-    if (userDocSnap.exists()) {
-      const cloudUser = userDocSnap.data() as User;
-      if (cloudUser && typeof cloudUser.balance === 'number') {
-        targetUser = { ...targetUser, ...cloudUser };
+    const dailyReturn = (amount * (plan.dailyYield / 100));
+    const invId = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
+    const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const newInv: UserInvestment = {
+      id: invId,
+      userId: user.userId,
+      planId: plan.id,
+      planName: plan.name,
+      asset: plan.asset,
+      amount: amount,
+      dailyReturn: dailyReturn,
+      startDate: new Date().toISOString(),
+      durationDays: plan.lockDays,
+      status: 'ACTIVE'
+    };
+
+    const invTx: Transaction = {
+      id: txId,
+      userId: user.userId,
+      type: 'YIELD',
+      amount: amount,
+      currency: plan.asset,
+      status: 'COMPLETED',
+      timestamp: new Date().toISOString(),
+      processedAt: new Date().toISOString(),
+      note: `Subscribed to ${plan.name} ($${amount.toFixed(2)})`
+    };
+
+    // ATOMIC FIRESTORE TRANSACTION:
+    // Guarantees balance check, deduction, investment record, and ledger entry are executed atomically.
+    const atomicResult = await runTransaction(db, async (firestoreTx) => {
+      const userRef = doc(db, 'users', user.userId);
+      const userDoc = await firestoreTx.get(userRef);
+
+      if (!userDoc.exists()) {
+        throw new Error('USER NOT FOUND: Account does not exist in cloud database.');
       }
+
+      const cloudUserData = userDoc.data() as User;
+      const currentBalance = typeof cloudUserData.balance === 'number' ? cloudUserData.balance : 0;
+
+      if (currentBalance < amount) {
+        throw new Error(
+          `Insufficient balance. Your available balance is $${currentBalance.toFixed(2)}, but this investment requires $${amount.toFixed(2)}. Please deposit funds or choose a plan within your available balance.`
+        );
+      }
+
+      const updatedUser: User = {
+        ...cloudUserData,
+        balance: Math.max(0, currentBalance - amount),
+        totalInvestments: (cloudUserData.totalInvestments || 0) + amount
+      };
+
+      const invRef = doc(db, 'investments', newInv.id);
+      const txRef = doc(db, 'transactions', invTx.id);
+
+      firestoreTx.set(userRef, cleanFirestoreData(updatedUser));
+      firestoreTx.set(invRef, cleanFirestoreData(newInv));
+      firestoreTx.set(txRef, cleanFirestoreData(invTx));
+
+      return {
+        user: updatedUser,
+        oldBalance: currentBalance
+      };
+    });
+
+    const targetUser = atomicResult.user;
+
+    const users = getUsersLocal();
+    const uIdx = users.findIndex((u) => u.userId === user.userId);
+    if (uIdx !== -1) {
+      users[uIdx] = targetUser;
+    } else {
+      users.push(targetUser);
     }
-  } catch (err) {
-    console.warn('Could not fetch cloud balance before investment check:', err);
-  }
+    saveUsers(users, false);
 
-  const currentBalance = targetUser.balance || 0;
+    const invs = getInvestmentsLocal();
+    invs.unshift(newInv);
+    saveInvestments(invs, false);
 
-  // Strict Balance Check (Fulfills PART 2: Insufficient balance handling)
-  if (currentBalance < amount) {
-    // Record failed investment attempt in Audit Logs for monitoring
+    const txs = getTransactionsLocal();
+    txs.unshift(invTx);
+    saveTransactions(txs, false);
+
+    saveCurrentSession(targetUser);
+
     const logs = getAuditLogs();
     logs.unshift({
       id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
       adminId: 'SYSTEM',
-      action: 'INVESTMENT_FAILED_INSUFFICIENT_FUNDS',
+      action: 'INVESTMENT_SUBSCRIBED',
       targetUserId: targetUser.userId,
       targetUsername: targetUser.username,
-      reason: `Attempted to invest $${amount.toFixed(2)} in ${plan.name} with available balance of $${currentBalance.toFixed(2)}`,
+      previousValue: `$${atomicResult.oldBalance.toFixed(2)}`,
+      newValue: `$${targetUser.balance.toFixed(2)}`,
+      reason: `Subscribed $${amount.toFixed(2)} to ${plan.name} (${newInv.id})`,
       timestamp: new Date().toISOString()
     });
     saveAuditLogs(logs);
 
-    throw new Error(
-      `Insufficient balance. You need $${amount.toFixed(2)} to start this investment, but your available balance is $${currentBalance.toFixed(2)}. Please add funds or choose a plan within your available balance.`
-    );
+    return { user: targetUser, investment: newInv };
+  } finally {
+    activeInvestmentSubscriptions.delete(user.userId);
   }
-
-  const oldBalance = targetUser.balance;
-  targetUser.balance = Math.max(0, targetUser.balance - amount);
-  targetUser.totalInvestments = (targetUser.totalInvestments || 0) + amount;
-  users[uIdx] = targetUser;
-
-  const dailyReturn = (amount * (plan.dailyYield / 100));
-  const newInv: UserInvestment = {
-    id: `INV-${Math.floor(100000 + Math.random() * 900000)}`,
-    userId: user.userId,
-    planId: plan.id,
-    planName: plan.name,
-    asset: plan.asset,
-    amount: amount,
-    dailyReturn: dailyReturn,
-    startDate: new Date().toISOString(),
-    durationDays: plan.lockDays,
-    status: 'ACTIVE'
-  };
-
-  const invTx: Transaction = {
-    id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-    userId: user.userId,
-    type: 'YIELD',
-    amount: amount,
-    currency: plan.asset,
-    status: 'COMPLETED',
-    timestamp: new Date().toISOString(),
-    processedAt: new Date().toISOString(),
-    note: `Subscribed to ${plan.name} ($${amount.toFixed(2)})`
-  };
-
-  // Direct Cloud Database atomic persistence
-  try {
-    await setDoc(doc(db, 'users', targetUser.userId), cleanFirestoreData(targetUser));
-    await setDoc(doc(db, 'investments', newInv.id), cleanFirestoreData(newInv));
-    await setDoc(doc(db, 'transactions', invTx.id), cleanFirestoreData(invTx));
-  } catch (err) {
-    console.warn('Error saving investment to Firestore:', err);
-  }
-
-  const invs = getInvestmentsLocal();
-  invs.unshift(newInv);
-  saveInvestments(invs, false);
-
-  const txs = getTransactionsLocal();
-  txs.unshift(invTx);
-  saveTransactions(txs, false);
-
-  saveUsers(users, false);
-  saveCurrentSession(targetUser);
-
-  const logs = getAuditLogs();
-  logs.unshift({
-    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
-    adminId: 'SYSTEM',
-    action: 'INVESTMENT_SUBSCRIBED',
-    targetUserId: targetUser.userId,
-    targetUsername: targetUser.username,
-    previousValue: `$${oldBalance.toFixed(2)}`,
-    newValue: `$${targetUser.balance.toFixed(2)}`,
-    reason: `Subscribed $${amount.toFixed(2)} to ${plan.name} (${newInv.id})`,
-    timestamp: new Date().toISOString()
-  });
-  saveAuditLogs(logs);
-
-  return { user: targetUser, investment: newInv };
 }
 
 export function withdrawReferralEarnings(user: User, amount: number): User {

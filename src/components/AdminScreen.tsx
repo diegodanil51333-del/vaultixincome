@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, Transaction, AuditLog, UserInvestment } from '../types';
 import {
   getUsers, saveUsers, getTransactions, saveTransactions, approveDepositTransaction, rejectDepositTransaction,
@@ -792,14 +792,20 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                         <div className="flex items-center space-x-2 shrink-0 self-start md:self-center pt-2 md:pt-0">
                           <button
                             onClick={() => handleApproveWithdrawal(tx.id)}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer"
+                            disabled={processingTxId === tx.id}
+                            className={`font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md ${
+                              processingTxId === tx.id
+                                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                : 'bg-emerald-500 hover:bg-emerald-600 text-black cursor-pointer'
+                            }`}
                           >
-                            Approve Withdrawal
+                            {processingTxId === tx.id ? 'Processing...' : 'Approve Withdrawal'}
                           </button>
 
                           <button
                             onClick={() => handleCancelWithdrawal(tx.id)}
-                            className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer"
+                            disabled={processingTxId === tx.id}
+                            className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer disabled:opacity-50"
                           >
                             Cancel & Refund
                           </button>
