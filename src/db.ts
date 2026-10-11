@@ -334,11 +334,11 @@ export const DEFAULT_INVESTMENT_PLANS: InvestmentPlan[] = [
     maxDeposit: 100000,
     lockDays: 30,
     riskLevel: 'Conservative',
-    description: 'Global banking, investment banking, asset management, and financial services.',
+    description: 'Global institutional finance, investment management, and financial services.',
     isActive: true,
     category: 'STOCK_PLAN',
     ticker: 'JPM',
-    sector: 'Banking & Finance'
+    sector: 'Financial Services'
   },
   {
     id: 'stock_v',
@@ -1105,13 +1105,42 @@ export async function approveDepositTransaction(
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
   }
 
+  // Direct Firestore Cloud Check: Ensure no concurrent admin has approved this transaction
+  try {
+    const cloudTxDoc = await getDoc(doc(db, 'transactions', transactionId));
+    if (cloudTxDoc.exists()) {
+      const cloudTxData = cloudTxDoc.data() as Transaction;
+      if (cloudTxData.status && cloudTxData.status !== 'PENDING') {
+        targetTx.status = cloudTxData.status;
+        txs[txIdx] = { ...targetTx, ...cloudTxData };
+        saveTransactions(txs);
+        throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status} in cloud ledger.`);
+      }
+    }
+  } catch (err: any) {
+    if (err.message && err.message.includes('TRANSACTION TERMINAL')) {
+      throw err;
+    }
+  }
+
   const users = getUsersLocal();
   const uIdx = users.findIndex((u) => u.userId === targetTx.userId);
   if (uIdx === -1) {
     throw new Error('Target user account not found.');
   }
 
-  const targetUser = { ...users[uIdx] };
+  let targetUser = { ...users[uIdx] };
+  try {
+    const userDocSnap = await getDoc(doc(db, 'users', targetTx.userId));
+    if (userDocSnap.exists()) {
+      const cloudUserData = userDocSnap.data() as User;
+      if (cloudUserData) {
+        targetUser = { ...targetUser, ...cloudUserData };
+      }
+    }
+  } catch (err) {
+    // Continue with local
+  }
   const oldBalance = targetUser.balance;
 
   // 1. Calculate and lock in final USD Valuation
@@ -1509,6 +1538,24 @@ export async function approveWithdrawalTransaction(adminUser: User, transactionI
   const targetTx = { ...txs[txIdx] };
   if (targetTx.status !== 'PENDING') {
     throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
+  }
+
+  // Direct Firestore Cloud Check: Ensure no concurrent admin has processed this withdrawal
+  try {
+    const cloudTxDoc = await getDoc(doc(db, 'transactions', transactionId));
+    if (cloudTxDoc.exists()) {
+      const cloudTxData = cloudTxDoc.data() as Transaction;
+      if (cloudTxData.status && cloudTxData.status !== 'PENDING') {
+        targetTx.status = cloudTxData.status;
+        txs[txIdx] = { ...targetTx, ...cloudTxData };
+        saveTransactions(txs);
+        throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status} in cloud ledger.`);
+      }
+    }
+  } catch (err: any) {
+    if (err.message && err.message.includes('TRANSACTION TERMINAL')) {
+      throw err;
+    }
   }
 
   targetTx.status = 'APPROVED';

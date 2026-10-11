@@ -86,14 +86,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
           <div className="text-center space-y-6 max-w-4xl mx-auto">
             <div className="inline-flex flex-wrap items-center justify-center gap-2 bg-[#141923]/95 border border-[#D4AF37]/50 px-4 py-1.5 rounded-full shadow-xl">
               <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
-              <span className="text-xs font-black text-[#D4AF37] tracking-wider uppercase">VAULTIX PRIVATE WEALTH & DIGITAL ASSET BANK</span>
+              <span className="text-xs font-black text-[#D4AF37] tracking-wider uppercase">VAULTIX PRIVATE WEALTH & DIGITAL ASSET PLATFORM</span>
               <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">
                 ● 100% Full Reserve
               </span>
             </div>
 
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-tight">
-              Institutional Digital Asset Bank & <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#D4AF37]">Algorithmic Yield Vaults</span>
+              Institutional Digital Asset Treasury & <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#D4AF37]">Algorithmic Yield Vaults</span>
             </h1>
 
             <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed font-normal">
@@ -336,7 +336,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
             </span>
             <h2 className="text-2xl md:text-3xl font-extrabold text-white">Major Global Stock Investment Options</h2>
             <p className="text-xs md:text-sm text-slate-400">
-              Access individual stock investment plans linked to top tech giants, semiconductors, banking, retail, and energy leaders.
+              Access individual stock investment plans linked to top tech giants, semiconductors, financial institutions, retail, and energy leaders.
             </p>
           </div>
 
@@ -353,7 +353,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
               { ticker: 'TSM', name: 'TSMC', sector: 'Foundry Manufacturing' },
               { ticker: 'AMD', name: 'AMD', sector: 'CPUs & GPUs' },
               { ticker: 'BRK.B', name: 'Berkshire', sector: 'Diversified Assets' },
-              { ticker: 'JPM', name: 'JPMorgan', sector: 'Global Banking' },
+              { ticker: 'JPM', name: 'JPMorgan', sector: 'Global Financial Services' },
               { ticker: 'V', name: 'Visa', sector: 'Payment Networks' },
               { ticker: 'WMT', name: 'Walmart', sector: 'Global Retail' },
               { ticker: 'NFLX', name: 'Netflix', sector: 'Streaming Media' },

@@ -403,6 +403,15 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
           </button>
 
           <button
+            onClick={() => setTab('investments')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tab === 'investments' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Investments ({investments.length})
+          </button>
+
+          <button
             onClick={() => setTab('all_txs')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               tab === 'all_txs' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-400 hover:text-white'
@@ -706,61 +715,221 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
         </div>
       )}
 
-      {/* TAB 3: Pending Withdrawal Authorization Requests */}
+      {/* TAB 3: Withdrawal Authorization & Processing */}
       {tab === 'withdrawals' && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-            <ArrowUpRight className="w-4 h-4 text-rose-400" />
-            <span>Pending Withdrawal Authorization Requests ({pendingWithdrawals.length})</span>
-          </h3>
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+              <ArrowUpRight className="w-4 h-4 text-rose-400" />
+              <span>Pending Withdrawal Authorization Requests ({pendingWithdrawals.length})</span>
+            </h3>
 
-          {pendingWithdrawals.length === 0 ? (
+            {pendingWithdrawals.length === 0 ? (
+              <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-8 text-center text-xs text-slate-400">
+                No pending withdrawal requests. All withdrawal requests are processed.
+              </div>
+            ) : (
+              <div className="bg-[#141923] border border-[#2A3447] rounded-2xl divide-y divide-[#2A3447] overflow-hidden">
+                {pendingWithdrawals.map((tx) => {
+                  const targetUser = users.find((u) => u.userId === tx.userId);
+                  const destAddr = tx.destinationAddress || (tx.note?.includes('->') ? tx.note.split('->')[1]?.trim() : '') || 'Address on file';
+                  return (
+                    <div key={tx.id} className="p-4 space-y-3">
+                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-rose-400">{tx.id}</span>
+                            <span className="text-xs text-white font-bold">@{targetUser?.username || 'Unknown'} ({targetUser?.fullName})</span>
+                            <span className="text-[10px] text-slate-400">{targetUser?.email} • ID: {targetUser?.accountId}</span>
+                            <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                              PENDING
+                            </span>
+                            {tx.network && (
+                              <span className="text-[10px] bg-indigo-500/20 text-indigo-400 font-mono font-bold px-2 py-0.5 rounded-full border border-indigo-500/30">
+                                {tx.network}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#0B0E14] border border-[#2A3447] rounded-xl p-2.5 text-xs">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase">Requested Amount</span>
+                              <span className="font-extrabold text-white">${tx.amount.toFixed(2)} {tx.currency}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase">Network Fee</span>
+                              <span className="font-bold text-slate-300">${(tx.feeAmount || 0).toFixed(2)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase">Net Payout</span>
+                              <span className="font-extrabold text-rose-400">${(tx.netAmount || tx.amount).toFixed(2)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase">Request Time</span>
+                              <span className="font-mono text-slate-300 text-[11px]">{new Date(tx.timestamp).toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#0B0E14] border border-slate-700/80 rounded-xl p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+                                Full Destination Crypto Wallet Address (Not Truncated):
+                              </span>
+                              <button
+                                onClick={() => copyToClipboard(destAddr)}
+                                className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center space-x-1 cursor-pointer"
+                              >
+                                {copiedText === destAddr ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                <span>{copiedText === destAddr ? 'Copied' : 'Copy Address'}</span>
+                              </button>
+                            </div>
+                            <span className="font-mono text-xs text-[#D4AF37] select-all font-bold break-all block">
+                              {destAddr}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 shrink-0 self-start md:self-center pt-2 md:pt-0">
+                          <button
+                            onClick={() => handleApproveWithdrawal(tx.id)}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer"
+                          >
+                            Approve Withdrawal
+                          </button>
+
+                          <button
+                            onClick={() => handleCancelWithdrawal(tx.id)}
+                            className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer"
+                          >
+                            Cancel & Refund
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Processed Withdrawals History */}
+          <div className="space-y-3 pt-4 border-t border-[#2A3447]">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Processed Withdrawal Decisions History
+            </h4>
+            <div className="bg-[#141923] border border-[#2A3447] rounded-2xl divide-y divide-[#2A3447] overflow-hidden">
+              {transactions
+                .filter((t) => (t.type === 'WITHDRAWAL' || t.type === 'BONUS_WITHDRAWAL') && t.status !== 'PENDING')
+                .slice(0, 15)
+                .map((tx) => {
+                  const targetUser = users.find((u) => u.userId === tx.userId);
+                  const isApproved = tx.status === 'APPROVED';
+                  return (
+                    <div key={tx.id} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono font-bold text-slate-300">{tx.id}</span>
+                          <span className="text-white font-semibold">@{targetUser?.username || tx.userId}</span>
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.2 rounded-full border ${
+                              isApproved
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                            }`}
+                          >
+                            {tx.status}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Net: <strong className="text-white font-mono">${(tx.netAmount || tx.amount).toFixed(2)} {tx.currency}</strong> • Decision Time: {new Date(tx.processedAt || tx.timestamp).toLocaleString()}
+                        </div>
+                        {tx.destinationAddress && (
+                          <div className="text-[10px] font-mono text-slate-500 truncate max-w-md">
+                            To: {tx.destinationAddress}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right text-[11px] text-slate-500 font-mono">
+                        {tx.processedAt ? new Date(tx.processedAt).toLocaleDateString() : ''}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3.2: User Investment Portfolios & Active Yield Plans */}
+      {tab === 'investments' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+              <TrendingUp className="w-4 h-4 text-[#D4AF37]" />
+              <span>User Investments & Active Vaults ({investments.length})</span>
+            </h3>
+            <span className="text-xs text-slate-400">
+              Total Invested Capital: <strong className="text-[#D4AF37] font-mono">${investments.reduce((sum, inv) => sum + (inv.amount || 0), 0).toLocaleString()}</strong>
+            </span>
+          </div>
+
+          {investments.length === 0 ? (
             <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-8 text-center text-xs text-slate-400">
-              No pending withdrawal requests. All withdrawal requests are processed.
+              No user investments currently active or subscribed.
             </div>
           ) : (
             <div className="bg-[#141923] border border-[#2A3447] rounded-2xl divide-y divide-[#2A3447] overflow-hidden">
-              {pendingWithdrawals.map((tx) => {
-                const targetUser = users.find((u) => u.userId === tx.userId);
+              {investments.map((inv) => {
+                const targetUser = users.find((u) => u.userId === inv.userId);
+                const accrued = getAccruedProfitForInvestment(inv);
+                const isCompleted = inv.status === 'COMPLETED';
+
                 return (
-                  <div key={tx.id} className="p-4 space-y-3">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-bold text-rose-400">{tx.id}</span>
-                          <span className="text-xs text-white font-bold">@{targetUser?.username || 'Unknown'} ({targetUser?.fullName})</span>
-                          <span className="text-[10px] text-slate-400">{targetUser?.email} • ID: {targetUser?.accountId}</span>
-                          <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
-                            PENDING
-                          </span>
-                        </div>
+                  <div key={inv.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-[#1D2432]/30 transition-colors">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-[#D4AF37]">{inv.id}</span>
+                        <span className="text-xs text-white font-bold">@{targetUser?.username || 'Unknown'}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Account {targetUser?.accountId}</span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            isCompleted
+                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                              : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          }`}
+                        >
+                          {inv.status || 'ACTIVE'}
+                        </span>
+                        <span className="text-[10px] bg-purple-500/20 text-purple-400 font-semibold px-2 py-0.5 rounded-full border border-purple-500/30">
+                          {inv.asset}
+                        </span>
+                      </div>
 
-                        <div className="text-xs text-slate-300">
-                          Amount: <span className="text-rose-400 font-extrabold">${tx.amount.toFixed(2)} {tx.currency}</span> • Submitted: {new Date(tx.timestamp).toLocaleString()}
-                        </div>
+                      <div className="text-xs text-slate-300 font-semibold">
+                        {inv.planName}
+                      </div>
 
-                        <div className="bg-[#0B0E14] border border-slate-700/80 rounded-xl p-2.5 mt-2">
-                          <span className="text-[10px] text-amber-400 font-bold block uppercase tracking-wider">Destination Crypto Wallet Address & Note:</span>
-                          <span className="font-mono text-xs text-[#D4AF37] select-all font-bold break-all block mt-0.5">
-                            {tx.note}
-                          </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#0B0E14] border border-[#2A3447] rounded-xl p-2.5 text-xs mt-1">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase">Principal Invested</span>
+                          <span className="font-extrabold text-white">${inv.amount.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase">Daily Return</span>
+                          <span className="font-bold text-emerald-400 font-mono">+${inv.dailyReturn.toFixed(2)}/day</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase">Accrued Yield</span>
+                          <span className="font-bold text-[#D4AF37] font-mono">+${accrued.toFixed(2)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase">Lock Duration</span>
+                          <span className="font-mono text-slate-300">{inv.durationDays} Days</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 shrink-0 self-start md:self-center">
-                        <button
-                          onClick={() => handleApproveWithdrawal(tx.id)}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md cursor-pointer"
-                        >
-                          Approve Withdrawal
-                        </button>
-
-                        <button
-                          onClick={() => handleCancelWithdrawal(tx.id)}
-                          className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md cursor-pointer"
-                        >
-                          Cancel & Refund
-                        </button>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        Started: {new Date(inv.startDate).toLocaleDateString()}
                       </div>
                     </div>
                   </div>

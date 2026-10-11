@@ -76,9 +76,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
 
   return (
     <div className="space-y-8 pb-20 md:pb-8">
-      {/* Institutional Crypto Bank Header Banner */}
+      {/* Institutional Crypto Reserve Header Banner */}
       <div className="bg-gradient-to-r from-[#141923] via-[#1A2230] to-[#141923] border border-[#D4AF37]/40 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
-        {/* Subtle Bank Glow Elements */}
+        {/* Subtle Treasury Glow Elements */}
         <div className="absolute -right-20 -top-20 w-80 h-80 bg-[#D4AF37]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute left-1/3 -bottom-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -87,7 +87,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <div className="inline-flex items-center space-x-1.5 bg-[#10141D] border border-[#D4AF37]/50 px-3 py-1 rounded-full text-[#D4AF37] font-extrabold uppercase tracking-widest text-[10px] shadow-sm">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>VAULTIX DIGITAL ASSET BANK</span>
+                <span>VAULTIX DIGITAL ASSET TREASURY</span>
               </div>
               <div className="inline-flex items-center space-x-1 text-[11px] text-emerald-400 font-mono bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />

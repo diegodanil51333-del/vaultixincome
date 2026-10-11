@@ -75,6 +75,33 @@ class CryptoPriceService {
   }
 
   /**
+   * Get currently cached prices or fallback prices synchronously
+   */
+  public getAllCachedPrices(): Record<string, CryptoPriceData> {
+    const cached = this.getCachedPrices();
+    if (cached) return cached;
+    const nowIso = new Date().toISOString();
+    const result: Record<string, CryptoPriceData> = {};
+    for (const [sym, meta] of Object.entries(FALLBACK_PRICES)) {
+      result[sym] = {
+        symbol: sym,
+        name: meta.name,
+        priceUsd: meta.priceUsd,
+        change24h: meta.change24h,
+        lastUpdated: nowIso
+      };
+    }
+    return result;
+  }
+
+  /**
+   * Alias for fetchAllPrices to fetch live prices
+   */
+  public async fetchAllLivePrices(): Promise<Record<string, CryptoPriceData>> {
+    return this.fetchAllPrices();
+  }
+
+  /**
    * Fetch all live prices from CoinGecko or fallback to Binance
    */
   public async fetchAllPrices(): Promise<Record<string, CryptoPriceData>> {

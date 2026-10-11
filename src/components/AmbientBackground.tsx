@@ -14,16 +14,16 @@ export const AmbientBackground: React.FC = () => {
     <div 
       id="vaultix-ambient-bg"
       className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none bg-[#0B0E14]"
-      style={{ contain: 'strict' }}
+      aria-hidden="true"
     >
-      {/* 1. Deep Multi-Tier Institutional Radial Glows */}
-      <div className="absolute -top-40 -left-40 w-[650px] h-[650px] rounded-full bg-gradient-to-br from-[#1E293B]/60 via-indigo-950/30 to-transparent blur-3xl pointer-events-none" />
-      <div className="absolute top-1/4 -right-40 w-[650px] h-[650px] rounded-full bg-gradient-to-br from-[#D4AF37]/15 via-amber-950/20 to-transparent blur-3xl pointer-events-none" />
-      <div className="absolute top-1/2 -left-32 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-emerald-950/25 via-[#0B0E14] to-transparent blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 right-1/4 w-[750px] h-[750px] rounded-full bg-gradient-to-tr from-[#0F172A]/90 via-[#0B0E14] to-transparent blur-3xl pointer-events-none" />
+      {/* 1. Deep Multi-Tier Institutional Radial Glows (Stationary, Non-Shaking) */}
+      <div className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-[#1E293B]/40 via-indigo-950/20 to-transparent blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 -right-32 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-[#D4AF37]/10 via-amber-950/15 to-transparent blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 -left-28 w-[550px] h-[550px] rounded-full bg-gradient-to-tr from-emerald-950/20 via-[#0B0E14] to-transparent blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-32 right-1/4 w-[650px] h-[650px] rounded-full bg-gradient-to-tr from-[#0F172A]/70 via-[#0B0E14] to-transparent blur-3xl pointer-events-none" />
 
       {/* 2. Subtle Financial Chart Line & Network Pattern Silhouettes */}
-      <svg className="absolute inset-0 w-full h-full opacity-[0.02] pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+      <svg className="absolute inset-0 w-full h-full opacity-[0.025] pointer-events-none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="chartGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#D4AF37" stopOpacity="0.3" />
@@ -36,7 +36,6 @@ export const AmbientBackground: React.FC = () => {
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#tradingGrid)" />
-        {/* Subtle decorative yield growth wave placed deep in background */}
         <path
           d="M 0 750 Q 350 620 700 680 T 1400 560 T 2100 440 T 2800 380"
           fill="none"
@@ -52,104 +51,31 @@ export const AmbientBackground: React.FC = () => {
         />
       </svg>
 
-      {/* 3. Smooth Hardware-Accelerated Floating Top Cryptocurrencies */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ contain: 'paint' }}>
-        {/* Bitcoin (BTC) */}
-        <div className="absolute top-[6%] left-2 sm:left-[8%] animate-float-slow opacity-50 md:opacity-70 transition-opacity">
-          <div className="p-1.5 sm:p-2.5 rounded-full sm:rounded-2xl bg-[#141923]/90 border border-[#F7931A]/40 backdrop-blur-md shadow-xl shadow-[#F7931A]/10 flex items-center space-x-2">
-            <BitcoinLogo className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
-            <div className="hidden sm:block text-left">
-              <div className="flex items-center space-x-1">
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-white block">BTC</span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold bg-emerald-500/15 px-1 rounded">+2.85%</span>
-              </div>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono block">Bitcoin Vault</span>
-            </div>
-          </div>
+      {/* 3. Non-Intrusive, Stable Cryptographic Watermarks (Zero Motion/Zero Shake) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+        <div className="absolute top-[8%] left-[4%] hidden lg:flex items-center space-x-2 p-2 rounded-2xl bg-[#141923]/40 border border-[#2A3447]/30">
+          <BitcoinLogo className="w-6 h-6 opacity-60" />
+          <span className="text-[10px] font-mono text-slate-400">BTC</span>
         </div>
-
-        {/* Ethereum (ETH) */}
-        <div className="absolute top-[14%] right-2 sm:right-[8%] animate-float-reverse opacity-50 md:opacity-70 transition-opacity">
-          <div className="p-1.5 sm:p-2.5 rounded-full sm:rounded-2xl bg-[#141923]/90 border border-[#627EEA]/40 backdrop-blur-md shadow-xl shadow-[#627EEA]/10 flex items-center space-x-2">
-            <EthereumLogo className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
-            <div className="hidden sm:block text-left">
-              <div className="flex items-center space-x-1">
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-white block">ETH</span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold bg-emerald-500/15 px-1 rounded">+1.92%</span>
-              </div>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono block">Ethereum Yield</span>
-            </div>
-          </div>
+        <div className="absolute top-[18%] right-[5%] hidden lg:flex items-center space-x-2 p-2 rounded-2xl bg-[#141923]/40 border border-[#2A3447]/30">
+          <EthereumLogo className="w-6 h-6 opacity-60" />
+          <span className="text-[10px] font-mono text-slate-400">ETH</span>
         </div>
-
-        {/* Tether (USDT) */}
-        <div className="absolute top-[34%] left-2 sm:left-[6%] animate-float-diagonal opacity-50 md:opacity-70 transition-opacity">
-          <div className="p-1.5 sm:p-2.5 rounded-full sm:rounded-2xl bg-[#141923]/90 border border-[#26A17B]/40 backdrop-blur-md shadow-xl shadow-[#26A17B]/10 flex items-center space-x-2">
-            <TetherLogo className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
-            <div className="hidden sm:block text-left">
-              <div className="flex items-center space-x-1">
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-white block">USDT</span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold bg-emerald-500/15 px-1 rounded">1.00 USD</span>
-              </div>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono block">TRC20 Liquidity</span>
-            </div>
-          </div>
+        <div className="absolute top-[42%] left-[3%] hidden lg:flex items-center space-x-2 p-2 rounded-2xl bg-[#141923]/40 border border-[#2A3447]/30">
+          <TetherLogo className="w-6 h-6 opacity-60" />
+          <span className="text-[10px] font-mono text-slate-400">USDT</span>
         </div>
-
-        {/* Solana (SOL) */}
-        <div className="absolute top-[46%] right-2 sm:right-[7%] animate-float-bob opacity-50 md:opacity-70 transition-opacity">
-          <div className="p-1.5 sm:p-2.5 rounded-full sm:rounded-2xl bg-[#141923]/90 border border-[#9945FF]/40 backdrop-blur-md shadow-xl shadow-[#9945FF]/10 flex items-center space-x-2">
-            <SolanaLogo className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
-            <div className="hidden sm:block text-left">
-              <div className="flex items-center space-x-1">
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-white block">SOL</span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold bg-emerald-500/15 px-1 rounded">+2.10%</span>
-              </div>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono block">High-Speed Node</span>
-            </div>
-          </div>
+        <div className="absolute top-[55%] right-[4%] hidden lg:flex items-center space-x-2 p-2 rounded-2xl bg-[#141923]/40 border border-[#2A3447]/30">
+          <SolanaLogo className="w-6 h-6 opacity-60" />
+          <span className="text-[10px] font-mono text-slate-400">SOL</span>
         </div>
-
-        {/* BNB Chain */}
-        <div className="absolute top-[62%] left-2 sm:left-[9%] animate-float-slow opacity-50 md:opacity-70 transition-opacity">
-          <div className="p-1.5 sm:p-2.5 rounded-full sm:rounded-2xl bg-[#141923]/90 border border-[#F3BA2F]/40 backdrop-blur-md shadow-xl shadow-[#F3BA2F]/10 flex items-center space-x-2">
-            <BnbLogo className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
-            <div className="hidden sm:block text-left">
-              <div className="flex items-center space-x-1">
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-white block">BNB</span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold bg-emerald-500/15 px-1 rounded">+3.15%</span>
-              </div>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono block">BNB Reserves</span>
-            </div>
-          </div>
+        <div className="absolute top-[72%] left-[5%] hidden lg:flex items-center space-x-2 p-2 rounded-2xl bg-[#141923]/40 border border-[#2A3447]/30">
+          <BnbLogo className="w-6 h-6 opacity-60" />
+          <span className="text-[10px] font-mono text-slate-400">BNB</span>
         </div>
-
-        {/* Ripple (XRP) */}
-        <div className="absolute top-[74%] right-2 sm:right-[9%] animate-float-reverse opacity-50 md:opacity-70 transition-opacity">
-          <div className="p-1.5 sm:p-2.5 rounded-full sm:rounded-2xl bg-[#141923]/90 border border-[#00AAE4]/40 backdrop-blur-md shadow-xl shadow-[#00AAE4]/10 flex items-center space-x-2">
-            <XrpLogo className="w-5 h-5 sm:w-8 sm:h-8 flex-shrink-0" />
-            <div className="hidden sm:block text-left">
-              <div className="flex items-center space-x-1">
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-white block">XRP</span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold bg-emerald-500/15 px-1 rounded">+4.12%</span>
-              </div>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono block">XRPL Liquidity</span>
-            </div>
-          </div>
-        </div>
-
-        {/* TRON (TRX) */}
-        <div className="absolute top-[86%] left-2 sm:left-[12%] animate-float-diagonal opacity-50 md:opacity-70 transition-opacity">
-          <div className="p-1.5 sm:p-2.5 rounded-full sm:rounded-2xl bg-[#141923]/90 border border-[#EB0029]/40 backdrop-blur-md shadow-xl shadow-[#EB0029]/10 flex items-center space-x-2">
-            <TronLogo className="w-5 h-5 sm:w-7 sm:h-7 flex-shrink-0" />
-            <div className="hidden sm:block text-left">
-              <div className="flex items-center space-x-1">
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-white block">TRX</span>
-                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold bg-emerald-500/15 px-1 rounded">+1.45%</span>
-              </div>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono block">TRON Smart Rails</span>
-            </div>
-          </div>
+        <div className="absolute top-[85%] right-[6%] hidden lg:flex items-center space-x-2 p-2 rounded-2xl bg-[#141923]/40 border border-[#2A3447]/30">
+          <XrpLogo className="w-6 h-6 opacity-60" />
+          <span className="text-[10px] font-mono text-slate-400">XRP</span>
         </div>
       </div>
     </div>
