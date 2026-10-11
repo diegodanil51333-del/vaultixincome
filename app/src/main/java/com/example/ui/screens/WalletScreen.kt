@@ -252,7 +252,7 @@ fun WalletScreen(
                     Text("Select Payment Gateway:", fontSize = 12.sp, color = VaultTextSecondary)
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    listOf("USDT TRC20", "Bitcoin (BTC)", "Bank Wire Transfer", "Credit Card / Crypto").forEach { m ->
+                    listOf("USDT TRC20", "Bitcoin (BTC)", "Direct Wire Transfer", "Credit Card / Crypto").forEach { m ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

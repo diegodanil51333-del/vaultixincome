@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CryptoProvider } from '../types';
-import { Globe, Info, ExternalLink, ShieldCheck, CreditCard, Banknote } from 'lucide-react';
+import { Globe, Info, ExternalLink, ShieldCheck, CreditCard } from 'lucide-react';
 
 export const BuyCryptoScreen: React.FC = () => {
   const [selectedCountry, setSelectedCountry] = useState('United States');
@@ -11,7 +11,7 @@ export const BuyCryptoScreen: React.FC = () => {
     {
       name: 'MoonPay',
       regions: ['United States', 'United Kingdom', 'European Union', 'Canada', 'Australia', 'Global / Other'],
-      paymentMethods: ['ACH / Bank Transfer', 'Credit & Debit Cards', 'Apple Pay', 'SEPA Instant'],
+      paymentMethods: ['ACH / Wire Transfer', 'Credit & Debit Cards', 'Apple Pay', 'SEPA Instant'],
       supportedCryptos: ['BTC', 'ETH', 'USDT', 'SOL', 'USDC'],
       websiteUrl: 'https://www.moonpay.com/buy',
       tagLine: 'Regulated Global On-Ramp Gateway'
@@ -27,7 +27,7 @@ export const BuyCryptoScreen: React.FC = () => {
     {
       name: 'Ramp Network',
       regions: ['United Kingdom', 'European Union', 'United States', 'Global / Other'],
-      paymentMethods: ['Open Banking', 'SEPA Instant', 'Credit Card', 'Pix'],
+      paymentMethods: ['Instant Electronic', 'SEPA Instant', 'Credit Card', 'Pix'],
       supportedCryptos: ['BTC', 'ETH', 'USDT', 'MATIC'],
       websiteUrl: 'https://ramp.network/buy',
       tagLine: 'Non-Custodial Instant Crypto Exchange'
@@ -35,7 +35,7 @@ export const BuyCryptoScreen: React.FC = () => {
     {
       name: 'Coinbase Pay',
       regions: ['United States', 'United Kingdom', 'European Union', 'Canada', 'Global / Other'],
-      paymentMethods: ['ACH Transfer', 'Bank Wire', 'Debit Card'],
+      paymentMethods: ['ACH Transfer', 'Direct Wire', 'Debit Card'],
       supportedCryptos: ['BTC', 'ETH', 'USDT', 'SOL', 'ADA'],
       websiteUrl: 'https://www.coinbase.com/buy-crypto',
       tagLine: 'Licensed U.S. Regulated Brokerage On-Ramp'

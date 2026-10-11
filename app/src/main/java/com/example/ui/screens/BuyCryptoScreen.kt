@@ -91,7 +91,7 @@ fun BuyCryptoScreen(
             CryptoProvider(
                 name = "MoonPay",
                 regions = listOf("United States", "United Kingdom", "European Union", "Canada", "Australia", "Global / Other"),
-                paymentMethods = listOf("ACH / Bank Transfer", "Credit & Debit Cards", "Apple Pay", "SEPA Instant"),
+                paymentMethods = listOf("ACH / Wire Transfer", "Credit & Debit Cards", "Apple Pay", "SEPA Instant"),
                 supportedCryptos = listOf("BTC", "ETH", "USDT", "SOL", "USDC"),
                 websiteUrl = "https://www.moonpay.com/buy",
                 tagLine = "Regulated Global On-Ramp Gateway"
@@ -107,7 +107,7 @@ fun BuyCryptoScreen(
             CryptoProvider(
                 name = "Ramp Network",
                 regions = listOf("United Kingdom", "European Union", "United States", "Global / Other"),
-                paymentMethods = listOf("Open Banking", "SEPA Instant", "Credit Card", "Pix"),
+                paymentMethods = listOf("Instant Electronic", "SEPA Instant", "Credit Card", "Pix"),
                 supportedCryptos = listOf("BTC", "ETH", "USDT", "MATIC"),
                 websiteUrl = "https://ramp.network/buy",
                 tagLine = "Non-Custodial Instant Crypto Exchange"
@@ -115,7 +115,7 @@ fun BuyCryptoScreen(
             CryptoProvider(
                 name = "Coinbase Pay",
                 regions = listOf("United States", "United Kingdom", "European Union", "Canada", "Global / Other"),
-                paymentMethods = listOf("ACH Transfer", "Bank Wire", "Debit Card"),
+                paymentMethods = listOf("ACH Transfer", "Direct Wire", "Debit Card"),
                 supportedCryptos = listOf("BTC", "ETH", "USDT", "SOL", "ADA"),
                 websiteUrl = "https://www.coinbase.com/buy-crypto",
                 tagLine = "Licensed U.S. Regulated Brokerage On-Ramp"

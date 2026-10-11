@@ -87,7 +87,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <div className="inline-flex items-center space-x-1.5 bg-[#10141D] border border-[#D4AF37]/50 px-3 py-1 rounded-full text-[#D4AF37] font-extrabold uppercase tracking-widest text-[10px] shadow-sm">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>VAULTIX DIGITAL ASSET TREASURY</span>
+                <span>VAULTIX DIGITAL ASSET PLATFORM</span>
               </div>
               <div className="inline-flex items-center space-x-1 text-[11px] text-emerald-400 font-mono bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
