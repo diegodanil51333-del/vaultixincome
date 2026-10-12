@@ -476,14 +476,14 @@ async function runTestSuite() {
       userId: testUserId,
       type: 'WITHDRAWAL',
       amount: withdrawAmount,
-      feeAmount: 2.0,
-      netAmount: 38.0,
+      feeAmount: 0.50,
+      netAmount: 39.50,
       currency: 'USDT',
       status: 'PENDING',
       timestamp: new Date().toISOString(),
       destinationAddress: destinationAddress,
       network: destinationNetwork,
-      note: `Withdrawal request #${withdrawTxId}`
+      note: `Withdrawal request #${withdrawTxId} ($0.50 fixed fee)`
     }));
   });
 

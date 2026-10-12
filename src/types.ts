@@ -67,6 +67,7 @@ export interface UserInvestment {
   durationDays: number;
   lastCreditedDaysCount?: number;
   status: 'ACTIVE' | 'COMPLETED' | 'WITHDRAWAL_PENDING' | 'WITHDRAWN';
+  idempotencyKey?: string;
 }
 
 export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'YIELD' | 'REFERRAL_REWARD' | 'FIRST_DEPOSIT_BONUS' | 'BONUS_WITHDRAWAL' | 'ADMIN_CREDIT' | 'ADMIN_DEBIT';

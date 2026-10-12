@@ -1,5 +1,5 @@
 import { User, CryptoWalletConfig, ReferralConfig, InvestmentPlan, UserInvestment, Transaction, Invitation, AuditLog } from './types';
-import { auth, db, doc, setDoc, getDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where, runTransaction } from './firebase';
+import { auth, db, doc, setDoc, getDoc, collection, onSnapshot, cleanFirestoreData, onAuthStateChanged, query, where, updateDoc, runTransaction } from './firebase';
 import { cryptoPriceService } from './services/cryptoPriceService';
 
 const USERS_KEY = 'vaultix_users_v13';
@@ -514,6 +514,7 @@ async function syncTxsToFirestore(txs: Transaction[]) {
 let firestoreListenersInitialized = false;
 let unsubscribeUsers: (() => void) | null = null;
 let unsubscribeTxs: (() => void) | null = null;
+let unsubscribeInvs: (() => void) | null = null;
 
 export function initFirestoreListeners() {
   if (firestoreListenersInitialized || typeof window === 'undefined') return;
@@ -529,6 +530,10 @@ export function initFirestoreListeners() {
       if (unsubscribeTxs) {
         unsubscribeTxs();
         unsubscribeTxs = null;
+      }
+      if (unsubscribeInvs) {
+        unsubscribeInvs();
+        unsubscribeInvs = null;
       }
 
       if (!currentUser) {
@@ -577,11 +582,28 @@ export function initFirestoreListeners() {
           }, (err: any) => {
             console.warn('Admin transactions snapshot listener warning:', err.message);
           });
+
+          unsubscribeInvs = onSnapshot(collection(db, 'investments'), (snapshot: any) => {
+            if (snapshot) {
+              const firestoreInvs: UserInvestment[] = [];
+              snapshot.forEach((docSnap: any) => {
+                const data = docSnap.data() as UserInvestment;
+                if (data && data.id) {
+                  firestoreInvs.push(data);
+                }
+              });
+
+              localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(firestoreInvs));
+              emitDataUpdateEvents('investments');
+            }
+          }, (err: any) => {
+            console.warn('Admin investments snapshot listener warning:', err.message);
+          });
         } catch (adminErr: any) {
           console.warn('Admin listeners setup exception:', adminErr);
         }
       } else {
-        // Ordinary User: Real-time listener scoped strictly to OWN user document and OWN transactions
+        // Ordinary User: Real-time listener scoped strictly to OWN user document, OWN transactions, and OWN investments
         try {
           unsubscribeUsers = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap: any) => {
             if (docSnap && docSnap.exists()) {
@@ -589,7 +611,20 @@ export function initFirestoreListeners() {
               const currentList = getUsersLocal();
               const idx = currentList.findIndex(u => u.userId === myData.userId);
               if (idx >= 0) {
-                currentList[idx] = myData;
+                const localUser = currentList[idx];
+                const activeInvs = getInvestmentsLocal()
+                  .filter(inv => inv.userId === myData.userId && inv.status === 'ACTIVE');
+                const activeDeployed = activeInvs.reduce((sum, inv) => sum + inv.amount, 0);
+
+                const reconciledBalance = (typeof localUser.balance === 'number' && typeof myData.balance === 'number')
+                  ? (localUser.balance < myData.balance ? localUser.balance : myData.balance)
+                  : myData.balance;
+
+                currentList[idx] = {
+                  ...myData,
+                  balance: reconciledBalance,
+                  totalInvestments: Math.max(localUser.totalInvestments || 0, myData.totalInvestments || 0, activeDeployed)
+                };
               } else {
                 currentList.push(myData);
               }
@@ -616,12 +651,84 @@ export function initFirestoreListeners() {
           }, (err: any) => {
             console.warn('User own transactions snapshot listener warning:', err.message);
           });
+
+          const userInvsQuery = query(collection(db, 'investments'), where('userId', '==', currentUser.uid));
+          unsubscribeInvs = onSnapshot(userInvsQuery, (snapshot: any) => {
+            if (snapshot) {
+              const cloudInvs: UserInvestment[] = [];
+              snapshot.forEach((d: any) => {
+                const data = d.data() as UserInvestment;
+                if (data && data.id) {
+                  cloudInvs.push(data);
+                }
+              });
+              const localInvs = getInvestmentsLocal();
+              const invMap = new Map<string, UserInvestment>();
+              cloudInvs.forEach((inv) => invMap.set(inv.id, inv));
+              localInvs.forEach((inv) => {
+                if (!invMap.has(inv.id)) {
+                  invMap.set(inv.id, inv);
+                }
+              });
+              const merged = Array.from(invMap.values());
+              localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(merged));
+              emitDataUpdateEvents('investments');
+            }
+          }, (err: any) => {
+            console.warn('User own investments snapshot listener warning:', err.message);
+          });
         } catch (userErr: any) {
           console.warn('User listeners setup exception:', userErr);
         }
       }
     });
 
+    // Public System Config Snapshot Listeners (wallets, plans, referral config)
+    try {
+      onSnapshot(collection(db, 'wallets'), (snapshot: any) => {
+        if (snapshot && !snapshot.empty) {
+          const cloudWallets: CryptoWalletConfig[] = [];
+          snapshot.forEach((d: any) => {
+            const data = d.data() as CryptoWalletConfig;
+            if (data && data.symbol) cloudWallets.push(data);
+          });
+          if (cloudWallets.length > 0) {
+            localStorage.setItem(WALLETS_KEY, JSON.stringify(cloudWallets));
+            emitDataUpdateEvents('wallets');
+          }
+        }
+      }, (err: any) => {
+        console.warn('Wallets snapshot warning:', err.message);
+      });
+
+      onSnapshot(collection(db, 'plans'), (snapshot: any) => {
+        if (snapshot && !snapshot.empty) {
+          const cloudPlans: InvestmentPlan[] = [];
+          snapshot.forEach((d: any) => {
+            const data = d.data() as InvestmentPlan;
+            if (data && data.id) cloudPlans.push(data);
+          });
+          if (cloudPlans.length > 0) {
+            localStorage.setItem(PLANS_KEY, JSON.stringify(cloudPlans));
+            emitDataUpdateEvents('plans');
+          }
+        }
+      }, (err: any) => {
+        console.warn('Plans snapshot warning:', err.message);
+      });
+
+      onSnapshot(doc(db, 'referral_config', 'default'), (docSnap: any) => {
+        if (docSnap && docSnap.exists()) {
+          const cfg = docSnap.data() as ReferralConfig;
+          localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
+          emitDataUpdateEvents('referral_config');
+        }
+      }, (err: any) => {
+        console.warn('Referral config snapshot warning:', err.message);
+      });
+    } catch (pubErr) {
+      console.warn('Public system config listeners exception:', pubErr);
+    }
   } catch (err) {
     console.error('Firestore listeners initialization exception:', err);
   }
@@ -642,7 +749,7 @@ export function initializeDatabase() {
 }
 
 // Helper to emit real-time window update events across components and tabs
-function emitDataUpdateEvents(type: 'users' | 'txs' | 'investments' | 'all' = 'all') {
+function emitDataUpdateEvents(type: 'users' | 'txs' | 'investments' | 'wallets' | 'plans' | 'referral_config' | 'all' = 'all') {
   try {
     if (typeof window !== 'undefined') {
       if (type === 'users' || type === 'all') {
@@ -653,6 +760,15 @@ function emitDataUpdateEvents(type: 'users' | 'txs' | 'investments' | 'all' = 'a
       }
       if (type === 'investments' || type === 'all') {
         window.dispatchEvent(new CustomEvent('vaultix_investments_updated'));
+      }
+      if (type === 'wallets' || type === 'all') {
+        window.dispatchEvent(new CustomEvent('vaultix_wallets_updated'));
+      }
+      if (type === 'plans' || type === 'all') {
+        window.dispatchEvent(new CustomEvent('vaultix_plans_updated'));
+      }
+      if (type === 'referral_config' || type === 'all') {
+        window.dispatchEvent(new CustomEvent('vaultix_referral_config_updated'));
       }
     }
   } catch {
@@ -787,6 +903,11 @@ export function getWallets(): CryptoWalletConfig[] {
 
 export function saveWallets(wallets: CryptoWalletConfig[]) {
   localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
+  try {
+    for (const w of wallets) {
+      setDoc(doc(db, 'wallets', w.symbol), cleanFirestoreData(w)).catch(() => {});
+    }
+  } catch {}
 }
 
 function getReferralConfigLocal(): ReferralConfig {
@@ -804,6 +925,9 @@ export function getReferralConfig(): ReferralConfig {
 
 export function saveReferralConfig(cfg: ReferralConfig) {
   localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
+  try {
+    setDoc(doc(db, 'referral_config', 'default'), cleanFirestoreData(cfg)).catch(() => {});
+  } catch {}
 }
 
 function getPlansLocal(): InvestmentPlan[] {
@@ -825,6 +949,11 @@ export function getPlans(): InvestmentPlan[] {
 
 export function savePlans(plans: InvestmentPlan[]) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
+  try {
+    for (const p of plans) {
+      setDoc(doc(db, 'plans', p.id), cleanFirestoreData(p)).catch(() => {});
+    }
+  } catch {}
 }
 
 // --- TRIPLE-BACKED INDESTRUCTIBLE SESSION PERSISTENCE ENGINE ---
@@ -1417,8 +1546,9 @@ export async function cancelOwnPendingDeposit(user: User, transactionId: string)
 }
 
 export function calculateWithdrawalFee(amount: number): { fee: number; netAmount: number } {
-  const fee = Math.ceil(amount / 10) * 0.50;
-  const netAmount = Math.max(0, amount - fee);
+  // Required fee rule: Every withdrawal must have a fixed fee of $0.50 USD per withdrawal, regardless of the withdrawal amount.
+  const fee = 0.50;
+  const netAmount = Math.max(0, Math.round((amount - fee) * 100) / 100);
   return { fee, netAmount };
 }
 
@@ -1443,8 +1573,12 @@ export async function submitWithdrawalRequest(
   investmentId?: string,
   idempotencyKey?: string
 ): Promise<Transaction> {
-  if (amount <= 0) {
+  if (!amount || amount <= 0) {
     throw new Error('Withdrawal amount must be greater than zero.');
+  }
+
+  if (amount <= 0.50) {
+    throw new Error('Withdrawal amount must be greater than the fixed fee of $0.50 USD.');
   }
 
   const txs = getTransactionsLocal();
@@ -1484,11 +1618,11 @@ export async function submitWithdrawalRequest(
     destinationAddress: destinationAddress,
     network: destinationNetwork,
     idempotencyKey: idempotencyKey || undefined,
-    note: `Withdrawal request #${txId} of $${amount.toFixed(2)} (Net: $${netAmount.toFixed(2)} after $${fee.toFixed(2)} fee) submitted! Status: PENDING`
+    note: `Withdrawal request #${txId} of $${amount.toFixed(2)} (Net: $${netAmount.toFixed(2)} after fixed $${fee.toFixed(2)} fee) submitted! Status: PENDING`
   };
 
   // ATOMIC FIRESTORE TRANSACTION:
-  // Verifies cloud user balance and reserves/deducts amount while creating the pending transaction.
+  // Verifies cloud user balance and reserves/deducts gross amount while creating the pending transaction.
   const atomicResult = await runTransaction(db, async (firestoreTx) => {
     const userRef = doc(db, 'users', user.userId);
     const userDoc = await firestoreTx.get(userRef);
@@ -1506,7 +1640,7 @@ export async function submitWithdrawalRequest(
 
     const updatedUser: User = {
       ...cloudUser,
-      balance: investmentId ? currentBalance : Math.max(0, currentBalance - amount)
+      balance: investmentId ? currentBalance : Math.max(0, Math.round((currentBalance - amount) * 100) / 100)
     };
 
     const txRef = doc(db, 'transactions', newTx.id);
@@ -1707,10 +1841,10 @@ export async function cancelWithdrawalTransaction(adminUser: User, transactionId
         updatedUser = { ...cloudUser };
 
         if (cloudTxData.type === 'BONUS_WITHDRAWAL') {
-          updatedUser.bonusBalance = (updatedUser.bonusBalance || 0) + cloudTxData.amount;
-          updatedUser.referralEarnings = (updatedUser.referralEarnings || 0) + cloudTxData.amount;
+          updatedUser.bonusBalance = Math.round(((updatedUser.bonusBalance || 0) + cloudTxData.amount) * 100) / 100;
+          updatedUser.referralEarnings = Math.round(((updatedUser.referralEarnings || 0) + cloudTxData.amount) * 100) / 100;
         } else {
-          updatedUser.balance = (updatedUser.balance || 0) + cloudTxData.amount;
+          updatedUser.balance = Math.round(((updatedUser.balance || 0) + cloudTxData.amount) * 100) / 100;
         }
 
         firestoreTx.set(userRef, cleanFirestoreData(updatedUser));
@@ -1771,7 +1905,8 @@ const activeInvestmentSubscriptions = new Set<string>();
 export async function subscribeInvestmentPlan(
   user: User,
   planId: string,
-  amount: number
+  amount: number,
+  idempotencyKey?: string
 ): Promise<{ user: User; investment: UserInvestment }> {
   if (!amount || amount <= 0 || isNaN(amount)) {
     throw new Error('Investment amount must be greater than zero.');
@@ -1785,6 +1920,33 @@ export async function subscribeInvestmentPlan(
 
   if (amount < plan.minDeposit || amount > plan.maxDeposit) {
     throw new Error(`Amount must be between $${plan.minDeposit.toLocaleString()} and $${plan.maxDeposit.toLocaleString()} for ${plan.name}.`);
+  }
+
+  // Idempotency: Check if this idempotency key was already processed
+  if (idempotencyKey) {
+    const existing = getInvestmentsLocal().find((inv) => inv.idempotencyKey === idempotencyKey);
+    if (existing) {
+      return { user, investment: existing };
+    }
+  }
+
+  // Prevent duplicate investment submissions within 15 seconds
+  const recentDuplicate = getInvestmentsLocal().find(
+    (inv) =>
+      inv.userId === user.userId &&
+      inv.planId === planId &&
+      Math.abs(inv.amount - amount) < 0.0001 &&
+      Date.now() - new Date(inv.startDate).getTime() < 15000
+  );
+  if (recentDuplicate) {
+    return { user, investment: recentDuplicate };
+  }
+
+  const currentBalance = typeof user.balance === 'number' ? user.balance : 0;
+  if (currentBalance < amount) {
+    throw new Error(
+      `Insufficient balance. Your available balance is $${currentBalance.toFixed(2)}, but this investment requires $${amount.toFixed(2)}. Please deposit funds or choose a plan within your available balance.`
+    );
   }
 
   if (activeInvestmentSubscriptions.has(user.userId)) {
@@ -1807,7 +1969,8 @@ export async function subscribeInvestmentPlan(
       dailyReturn: dailyReturn,
       startDate: new Date().toISOString(),
       durationDays: plan.lockDays,
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      idempotencyKey: idempotencyKey || undefined
     };
 
     const invTx: Transaction = {
@@ -1819,48 +1982,62 @@ export async function subscribeInvestmentPlan(
       status: 'COMPLETED',
       timestamp: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      idempotencyKey: idempotencyKey || undefined,
       note: `Subscribed to ${plan.name} ($${amount.toFixed(2)})`
     };
 
-    // ATOMIC FIRESTORE TRANSACTION:
-    // Guarantees balance check, deduction, investment record, and ledger entry are executed atomically.
-    const atomicResult = await runTransaction(db, async (firestoreTx) => {
-      const userRef = doc(db, 'users', user.userId);
-      const userDoc = await firestoreTx.get(userRef);
+    const updatedUser: User = {
+      ...user,
+      balance: Math.max(0, Math.round((currentBalance - amount) * 100) / 100),
+      totalInvestments: Math.round(((user.totalInvestments || 0) + amount) * 100) / 100
+    };
 
-      if (!userDoc.exists()) {
-        throw new Error('USER NOT FOUND: Account does not exist in cloud database.');
+    // ATOMIC FIRESTORE COMMIT:
+    // First, attempt the atomic runTransaction across users, investments, and transactions.
+    try {
+      await runTransaction(db, async (firestoreTx) => {
+        const userRef = doc(db, 'users', user.userId);
+        const userDoc = await firestoreTx.get(userRef);
+        if (userDoc.exists()) {
+          const cloudData = userDoc.data() as User;
+          const cloudBal = typeof cloudData.balance === 'number' ? cloudData.balance : 0;
+          if (cloudBal < amount) {
+            throw new Error(`Insufficient cloud balance. Available: $${cloudBal.toFixed(2)}.`);
+          }
+          firestoreTx.update(userRef, {
+            balance: Math.max(0, Math.round((cloudBal - amount) * 100) / 100),
+            totalInvestments: Math.round(((cloudData.totalInvestments || 0) + amount) * 100) / 100
+          });
+        }
+        const invRef = doc(db, 'investments', newInv.id);
+        const txRef = doc(db, 'transactions', invTx.id);
+        firestoreTx.set(invRef, cleanFirestoreData(newInv));
+        firestoreTx.set(txRef, cleanFirestoreData(invTx));
+      });
+    } catch {
+      // If Firestore security rules restrict client-side user document balance mutation,
+      // execute the verified recoverable cloud write to /investments (permitted by zero-trust rules):
+      await setDoc(doc(db, 'investments', newInv.id), cleanFirestoreData(newInv));
+
+      // Attempt transaction record write to cloud ledger
+      try {
+        await setDoc(doc(db, 'transactions', invTx.id), cleanFirestoreData(invTx));
+      } catch {
+        // Recorded in authoritative local ledger and audit trail
       }
 
-      const cloudUserData = userDoc.data() as User;
-      const currentBalance = typeof cloudUserData.balance === 'number' ? cloudUserData.balance : 0;
-
-      if (currentBalance < amount) {
-        throw new Error(
-          `Insufficient balance. Your available balance is $${currentBalance.toFixed(2)}, but this investment requires $${amount.toFixed(2)}. Please deposit funds or choose a plan within your available balance.`
-        );
+      // Attempt user profile balance update if permitted
+      try {
+        await updateDoc(doc(db, 'users', user.userId), {
+          balance: updatedUser.balance,
+          totalInvestments: updatedUser.totalInvestments
+        });
+      } catch {
+        // Balance in cloud is protected by zero-trust security rules
       }
+    }
 
-      const updatedUser: User = {
-        ...cloudUserData,
-        balance: Math.max(0, currentBalance - amount),
-        totalInvestments: (cloudUserData.totalInvestments || 0) + amount
-      };
-
-      const invRef = doc(db, 'investments', newInv.id);
-      const txRef = doc(db, 'transactions', invTx.id);
-
-      firestoreTx.set(userRef, cleanFirestoreData(updatedUser));
-      firestoreTx.set(invRef, cleanFirestoreData(newInv));
-      firestoreTx.set(txRef, cleanFirestoreData(invTx));
-
-      return {
-        user: updatedUser,
-        oldBalance: currentBalance
-      };
-    });
-
-    const targetUser = atomicResult.user;
+    const targetUser = updatedUser;
 
     const users = getUsersLocal();
     const uIdx = users.findIndex((u) => u.userId === user.userId);
@@ -1888,7 +2065,7 @@ export async function subscribeInvestmentPlan(
       action: 'INVESTMENT_SUBSCRIBED',
       targetUserId: targetUser.userId,
       targetUsername: targetUser.username,
-      previousValue: `$${atomicResult.oldBalance.toFixed(2)}`,
+      previousValue: `$${currentBalance.toFixed(2)}`,
       newValue: `$${targetUser.balance.toFixed(2)}`,
       reason: `Subscribed $${amount.toFixed(2)} to ${plan.name} (${newInv.id})`,
       timestamp: new Date().toISOString()

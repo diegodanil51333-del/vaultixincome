@@ -768,12 +768,12 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                               <span className="font-extrabold text-white">${tx.amount.toFixed(2)} {tx.currency}</span>
                             </div>
                             <div>
-                              <span className="text-[10px] text-slate-400 block uppercase">Network Fee</span>
-                              <span className="font-bold text-slate-300">${(tx.feeAmount || 0).toFixed(2)}</span>
+                              <span className="text-[10px] text-slate-400 block uppercase">Fixed Fee</span>
+                              <span className="font-bold text-rose-400">-${(tx.feeAmount !== undefined ? tx.feeAmount : 0.50).toFixed(2)} USD</span>
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-400 block uppercase">Net Payout</span>
-                              <span className="font-extrabold text-rose-400">${(tx.netAmount || tx.amount).toFixed(2)}</span>
+                              <span className="font-extrabold text-emerald-400">${(tx.netAmount !== undefined ? tx.netAmount : Math.max(0, tx.amount - (tx.feeAmount ?? 0.50))).toFixed(2)} USD</span>
                             </div>
                             <div>
                               <span className="text-[10px] text-slate-400 block uppercase">Request Time</span>

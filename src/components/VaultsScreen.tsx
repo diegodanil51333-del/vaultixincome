@@ -85,8 +85,10 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
     setError(null);
     setSuccess(null);
 
+    const idempotencyKey = `IDEMP-INV-${user.userId}-${selectedPlan.id}-${Math.floor(Date.now() / 15000)}`;
+
     try {
-      const res = await subscribeInvestmentPlan(user, selectedPlan.id, depositAmount);
+      const res = await subscribeInvestmentPlan(user, selectedPlan.id, depositAmount, idempotencyKey);
       onUserUpdated(res.user);
       setSuccess(`Successfully subscribed $${depositAmount.toLocaleString()} to ${selectedPlan.name}! Estimated yield: +$${res.investment.dailyReturn.toFixed(2)}/day.`);
       setShowConfirmModal(false);

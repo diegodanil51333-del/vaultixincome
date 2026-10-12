@@ -140,8 +140,8 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
 
     const amount = Number(withdrawAmount);
 
-    if (!amount || amount <= 0) {
-      setWError('Please enter a valid withdrawal amount.');
+    if (!amount || isNaN(amount) || amount <= 0.50) {
+      setWError('Please enter a valid withdrawal amount greater than the fixed fee of $0.50 USD.');
       isSubmittingWithRef.current = false;
       setIsSubmittingWith(false);
       return;
@@ -451,7 +451,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
             />
           </div>
 
-          {/* Fee Calculation Breakdown ($0.50 per $10) */}
+          {/* Fee Calculation Breakdown ($0.50 Fixed Fee) */}
           {Number(withdrawAmount) > 0 && (
             <div className="bg-[#1D2432] border border-[#2A3447] p-3.5 rounded-xl text-xs space-y-1.5">
               <div className="flex justify-between text-slate-300">
@@ -459,11 +459,11 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
                 <span className="font-bold text-white">${Number(withdrawAmount).toFixed(2)} USD</span>
               </div>
               <div className="flex justify-between text-rose-400">
-                <span>Withdrawal Fee ($0.50 per $10):</span>
+                <span>Fixed Withdrawal Fee:</span>
                 <span className="font-bold">-${calculateWithdrawalFee(Number(withdrawAmount)).fee.toFixed(2)} USD</span>
               </div>
               <div className="flex justify-between text-emerald-400 pt-1 border-t border-[#2A3447] font-bold">
-                <span>Net Amount Received:</span>
+                <span>Net Amount to be Received:</span>
                 <span className="text-sm">${calculateWithdrawalFee(Number(withdrawAmount)).netAmount.toFixed(2)} USD</span>
               </div>
             </div>
