@@ -247,7 +247,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
       </section>
 
       {/* Live Market Section */}
-      <section id="market" className="py-16 md:py-24 bg-[#0B0E14] border-b border-[#2A3447]">
+      <section id="market" className="py-16 md:py-24 bg-[#0E131C]/60 backdrop-blur-sm border-b border-[#2A3447]/80 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <span className="text-xs font-extrabold text-[#D4AF37] uppercase tracking-widest">Market Intelligence</span>
@@ -262,7 +262,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
       </section>
 
       {/* VVIP Executive Plans Preview Section with bg_growth.jpg */}
-      <section id="vvip" className="relative py-16 md:py-24 bg-gradient-to-b from-[#0B0E14] via-[#141923] to-[#0B0E14] border-b border-[#2A3447] overflow-hidden">
+      <section id="vvip" className="relative py-16 md:py-24 bg-gradient-to-b from-[#0E131C]/80 via-[#141923]/90 to-[#0E131C]/80 backdrop-blur-sm border-b border-[#2A3447]/80 overflow-hidden">
         {/* Subtle Background Image Overlay */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <img src="/bg_growth.jpg" alt="" className="w-full h-full object-cover object-center" />
@@ -327,7 +327,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
       </section>
 
       {/* Stock Investment Section */}
-      <section id="stocks" className="py-16 md:py-24 bg-[#0B0E14] border-b border-[#2A3447]">
+      <section id="stocks" className="py-16 md:py-24 bg-[#0E131C]/60 backdrop-blur-sm border-b border-[#2A3447]/80 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center justify-center space-x-1">

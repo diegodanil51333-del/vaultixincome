@@ -157,7 +157,7 @@ export function App() {
       <div className="flex-1 flex flex-col md:flex-row relative z-10">
         <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} user={currentUser} />
 
-        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full">
           {currentTab === 'dashboard' && (
             <DashboardScreen user={currentUser} onNavigateToTab={setCurrentTab} />
           )}
