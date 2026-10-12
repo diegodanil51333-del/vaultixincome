@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { User, InvestmentPlan, UserInvestment } from '../types';
 import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers, getAccruedProfitForInvestment, validateWithdrawal } from '../db';
 import { TrendingUp, CheckCircle, AlertCircle, DollarSign, ArrowUpRight, ShieldCheck, X, Crown, Building2, Layers } from 'lucide-react';
@@ -50,6 +50,8 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
   // Confirmation Modal State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const isSubscribingRef = useRef(false);
+  const isInvWithdrawingRef = useRef(false);
 
   const handleOpenConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +70,7 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
 
     if (user.balance < depositAmount) {
       setError(
-        `Insufficient balance. You need $${depositAmount.toFixed(2)} to start this investment, but your available balance is $${user.balance.toFixed(2)}. Please add funds or choose a plan within your available balance.`
+        `Insufficient balance. Your available balance is $${user.balance.toFixed(2)}, but this investment requires $${depositAmount.toFixed(2)}. Please deposit funds or choose a plan within your available balance.`
       );
       return;
     }
@@ -77,6 +79,8 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
   };
 
   const handleConfirmSubscribe = async () => {
+    if (isSubscribingRef.current) return; // Synchronous zero-latency double-click guard
+    isSubscribingRef.current = true;
     setIsSubscribing(true);
     setError(null);
     setSuccess(null);
@@ -90,19 +94,26 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
       setError(err.message || 'Subscription failed.');
       setShowConfirmModal(false);
     } finally {
+      isSubscribingRef.current = false;
       setIsSubscribing(false);
     }
   };
 
   const handleExecuteInvestmentWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isInvWithdrawingRef.current) return;
+    isInvWithdrawingRef.current = true;
     setInvWError(null);
     setInvWSuccess(null);
 
-    if (!selectedInvForWithdraw) return;
+    if (!selectedInvForWithdraw) {
+      isInvWithdrawingRef.current = false;
+      return;
+    }
 
     if (!invWithdrawAddress.trim()) {
       setInvWError('Please enter a destination crypto wallet address.');
+      isInvWithdrawingRef.current = false;
       return;
     }
 
@@ -130,6 +141,8 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
       setInvWithdrawAddress('');
     } catch (err: any) {
       setInvWError(err.message || 'Investment withdrawal failed.');
+    } finally {
+      isInvWithdrawingRef.current = false;
     }
   };
 

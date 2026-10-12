@@ -59,7 +59,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
   const activeVaultsValue = activeInvestments.reduce((sum, inv) => sum + inv.amount, 0.0);
   
   const completedYields = completedInvestments.reduce((sum, inv) => sum + (inv.dailyReturn * inv.durationDays), 0.0);
-  const totalYieldProfit = (user.totalProfitLoss || 0.0) + completedYields;
+  const totalYieldProfit = Math.max(user.totalProfitLoss || 0.0, completedYields);
 
   // Real Calculator Yield Rates based on institutional strategies
   const assetRates: Record<string, { dailyPct: number; planName: string }> = {

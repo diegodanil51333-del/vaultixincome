@@ -174,13 +174,15 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
   const pendingWithdrawals = transactions.filter((t) => t.type === 'WITHDRAWAL' && t.status === 'PENDING');
 
   const [processingTxId, setProcessingTxId] = useState<string | null>(null);
+  const processingTxIdsRef = useRef<Set<string>>(new Set());
 
   // Deposit Actions
   const handleApproveDeposit = async (txId: string) => {
-    if (processingTxId) return; // Prevent double-clicks
+    if (processingTxIdsRef.current.has(txId)) return; // Synchronous zero-latency double-click guard
+    processingTxIdsRef.current.add(txId);
+    setProcessingTxId(txId);
+    setError(null);
     try {
-      setProcessingTxId(txId);
-      setError(null);
       const res = await approveDepositTransaction(currentAdmin, txId);
       const cbNote = res.tx.cashbackAwarded && res.tx.cashbackAmount
         ? ` (including +$${res.tx.cashbackAmount.toFixed(2)} 0.5% First-Deposit Cashback)`
@@ -190,15 +192,17 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     } catch (err: any) {
       setError(err.message || 'Failed to approve deposit.');
     } finally {
+      processingTxIdsRef.current.delete(txId);
       setProcessingTxId(null);
     }
   };
 
   const handleRejectDeposit = async (txId: string) => {
-    if (processingTxId) return;
+    if (processingTxIdsRef.current.has(txId)) return;
+    processingTxIdsRef.current.add(txId);
+    setProcessingTxId(txId);
+    setError(null);
     try {
-      setProcessingTxId(txId);
-      setError(null);
       await rejectDepositTransaction(currentAdmin, txId, rejectReason || 'Admin Rejection');
       setMsg(`Deposit ${txId} rejected.`);
       setRejectReason('');
@@ -206,46 +210,52 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     } catch (err: any) {
       setError(err.message || 'Failed to reject deposit.');
     } finally {
+      processingTxIdsRef.current.delete(txId);
       setProcessingTxId(null);
     }
   };
 
   const handleCancelDeposit = async (txId: string) => {
-    if (processingTxId) return;
+    if (processingTxIdsRef.current.has(txId)) return;
+    processingTxIdsRef.current.add(txId);
+    setProcessingTxId(txId);
+    setError(null);
     try {
-      setProcessingTxId(txId);
-      setError(null);
       await cancelDepositTransaction(currentAdmin, txId);
       setMsg(`Deposit ${txId} cancelled.`);
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to cancel deposit.');
     } finally {
+      processingTxIdsRef.current.delete(txId);
       setProcessingTxId(null);
     }
   };
 
   // Withdrawal Actions
   const handleApproveWithdrawal = async (txId: string) => {
-    if (processingTxId) return;
+    if (processingTxIdsRef.current.has(txId)) return;
+    processingTxIdsRef.current.add(txId);
+    setProcessingTxId(txId);
+    setError(null);
     try {
-      setProcessingTxId(txId);
-      setError(null);
       const res = await approveWithdrawalTransaction(currentAdmin, txId);
       setMsg(`Withdrawal ${txId} approved and completed for @${res.user.username}!`);
       refreshData();
     } catch (err: any) {
       setError(err.message || 'Failed to approve withdrawal.');
     } finally {
+      processingTxIdsRef.current.delete(txId);
       setProcessingTxId(null);
     }
   };
 
   const handleCancelWithdrawal = async (txId: string) => {
-    if (processingTxId) return;
+    if (processingTxIdsRef.current.has(txId)) return;
+    processingTxIdsRef.current.add(txId);
+    setProcessingTxId(txId);
+    setError(null);
     try {
-      setProcessingTxId(txId);
-      setError(null);
       const res = await cancelWithdrawalTransaction(currentAdmin, txId, rejectReason || 'Administrative cancellation');
       setMsg(`Withdrawal ${txId} cancelled. Refunded $${res.tx.amount.toFixed(2)} back to @${res.user.username}.`);
       setRejectReason('');
@@ -253,6 +263,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     } catch (err: any) {
       setError(err.message || 'Failed to cancel withdrawal.');
     } finally {
+      processingTxIdsRef.current.delete(txId);
       setProcessingTxId(null);
     }
   };

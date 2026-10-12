@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Transaction } from '../types';
 import { getWallets, submitDeposit, submitWithdrawalRequest, submitBonusWithdrawalRequest, calculateWithdrawalFee, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelOwnPendingDeposit } from '../db';
 import { cryptoPriceService } from '../services/cryptoPriceService';
@@ -23,6 +23,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
   const [depError, setDepError] = useState<string | null>(null);
   const [depSuccess, setDepSuccess] = useState<string | null>(null);
   const [isSubmittingDep, setIsSubmittingDep] = useState(false);
+  const isSubmittingDepRef = useRef(false);
 
   // Live Crypto Valuation State
   const [liveCryptoRate, setLiveCryptoRate] = useState<number>(1.0);
@@ -35,6 +36,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
   const [wError, setWError] = useState<string | null>(null);
   const [wSuccess, setWSuccess] = useState<string | null>(null);
   const [isSubmittingWith, setIsSubmittingWith] = useState(false);
+  const isSubmittingWithRef = useRef(false);
 
   // Fetch live market rate when symbol or deposit amount changes
   useEffect(() => {
@@ -88,7 +90,9 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
 
   const handleSubmitDepositRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmittingDep) return; // Prevent double-clicks
+    if (isSubmittingDepRef.current) return; // Synchronous zero-latency double-click guard
+    isSubmittingDepRef.current = true;
+    setIsSubmittingDep(true);
 
     setDepError(null);
     setDepSuccess(null);
@@ -96,10 +100,11 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     const amt = Number(depositAmount);
     if (!amt || amt <= 0) {
       setDepError('Please enter a valid deposit amount greater than zero.');
+      isSubmittingDepRef.current = false;
+      setIsSubmittingDep(false);
       return;
     }
 
-    setIsSubmittingDep(true);
     const idempotencyKey = `DEP-${user.userId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
     try {
@@ -119,13 +124,16 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     } catch (err: any) {
       setDepError(err.message || 'Failed to submit deposit. Please try again.');
     } finally {
+      isSubmittingDepRef.current = false;
       setIsSubmittingDep(false);
     }
   };
 
   const handleWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmittingWith) return; // Prevent double-clicks
+    if (isSubmittingWithRef.current) return; // Synchronous zero-latency double-click guard
+    isSubmittingWithRef.current = true;
+    setIsSubmittingWith(true);
 
     setWError(null);
     setWSuccess(null);
@@ -134,20 +142,25 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
 
     if (!amount || amount <= 0) {
       setWError('Please enter a valid withdrawal amount.');
+      isSubmittingWithRef.current = false;
+      setIsSubmittingWith(false);
       return;
     }
 
     if (amount > user.balance) {
       setWError(`Insufficient funds. Your available balance is $${user.balance.toFixed(2)}.`);
+      isSubmittingWithRef.current = false;
+      setIsSubmittingWith(false);
       return;
     }
 
     if (!withdrawAddress.trim()) {
       setWError('Please enter a destination crypto wallet address.');
+      isSubmittingWithRef.current = false;
+      setIsSubmittingWith(false);
       return;
     }
 
-    setIsSubmittingWith(true);
     const idempotencyKey = `WTH-${user.userId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
     try {
@@ -170,6 +183,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     } catch (err: any) {
       setWError(err.message || 'Withdrawal request failed.');
     } finally {
+      isSubmittingWithRef.current = false;
       setIsSubmittingWith(false);
     }
   };

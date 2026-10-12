@@ -52,7 +52,25 @@ export function App() {
       }
     }
 
+    const handleUpdate = () => {
+      const sess = getCurrentSession();
+      if (sess) {
+        const all = getUsers();
+        const found = all.find((u) => u.userId === sess.userId || u.email?.toLowerCase() === sess.email?.toLowerCase());
+        if (found) {
+          setCurrentUser((prev) => (prev ? { ...prev, ...found } : found));
+        }
+      }
+    };
+    window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
     setIsInitialized(true);
+
+    return () => {
+      window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   const setCurrentTab = (tab: NavTab) => {
