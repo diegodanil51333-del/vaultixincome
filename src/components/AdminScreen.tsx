@@ -620,7 +620,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                         )}
                         {targetUser && (targetUser.referredBy || targetUser.referredByUsername) && !targetUser.hasReceivedSignupBonus && (
                           <div className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded inline-block border border-amber-500/20">
-                            ★ Qualifying for $3 User Signup Bonus & $5 Referrer (@{targetUser.referredByUsername}) Bonus
+                            ★ Qualifying for $2 User Welcome Bonus & $5 Referrer (@{targetUser.referredByUsername}) Bonus
                           </div>
                         )}
                       </div>

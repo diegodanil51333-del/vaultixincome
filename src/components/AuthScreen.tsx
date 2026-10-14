@@ -321,62 +321,71 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
     let referrerUsername: string | undefined = undefined;
     let referrerDisplayName: string | undefined = undefined;
-    let initialBonusBalance = 0.0;
-    let referrerUser: User | undefined = undefined;
-    const newTxs: any[] = [];
-    const txs = getTransactions();
+    let referrerUser: any | undefined = undefined;
 
     if (referralCodeInput.trim()) {
       const codeClean = referralCodeInput.trim().toUpperCase();
-      
-      // 1. First check local cached users
-      referrerUser = users.find((u) => u.referralCode?.toUpperCase() === codeClean || u.username?.toUpperCase() === codeClean);
 
-      // 2. If not found locally, query Cloud Firestore for referrer user
-      if (!referrerUser) {
-        try {
-          const qRefCode = query(collection(db, 'users'), where('referralCode', '==', codeClean));
-          const snapRefCode = await getDocs(qRefCode);
-          if (!snapRefCode.empty) {
-            referrerUser = snapRefCode.docs[0].data() as User;
-          } else {
-            const qRefUser = query(collection(db, 'users'), where('username', '==', referralCodeInput.trim().toLowerCase()));
-            const snapRefUser = await getDocs(qRefUser);
-            if (!snapRefUser.empty) {
-              referrerUser = snapRefUser.docs[0].data() as User;
-            }
-          }
-        } catch (queryErr) {
-          console.warn('Firestore referral lookup check:', queryErr);
-        }
-      }
-
-      // 3. Special admin testing code handling
-      if (!referrerUser && codeClean === 'VXREF-ADMIN') {
-        referrerUser = users.find((u) => u.role === 'ADMIN') || {
-          userId: 'USR-000001',
-          accountId: 'VX-100001',
-          username: 'vaultix_admin',
-          fullName: 'Vaultix Administrator',
-          email: 'vaultixincometeam@outlook.com',
-          role: 'ADMIN',
-          accountStatus: 'ACTIVE',
-          balance: 0,
-          referralEarnings: 0,
-          totalDeposits: 0,
-          totalInvestments: 0,
-          totalProfitLoss: 0,
-          referralCode: 'VXREF-ADMIN',
-          createdAt: new Date().toISOString()
-        };
-      }
-
-      if (referrerUser) {
-        referrerUsername = referrerUser.username;
-        referrerDisplayName = referrerUser.fullName || referrerUser.username;
-      } else {
-        setError(`Invalid referral code "${referralCodeInput.trim()}" provided.`);
+      // Check self-referral against registration inputs
+      if (
+        codeClean === username.trim().toUpperCase() ||
+        codeClean === email.trim().toLowerCase() ||
+        codeClean === email.trim().toUpperCase()
+      ) {
+        setError('You cannot refer yourself. Please enter a valid referral code or leave the field blank.');
         return;
+      }
+
+      // Backend validation via /api/validate-referral
+      try {
+        const valRes = await fetch('/api/validate-referral', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            referralCode: referralCodeInput.trim(),
+            currentUsername: username.trim(),
+            currentEmail: email.trim().toLowerCase()
+          })
+        });
+
+        const valData = await valRes.json();
+        if (!valRes.ok || !valData.valid) {
+          setError(valData.error || `Invalid referral code "${referralCodeInput.trim()}" provided.`);
+          return;
+        }
+
+        if (valData.referrer) {
+          referrerUser = valData.referrer;
+          referrerUsername = valData.referrer.username;
+          referrerDisplayName = valData.referrer.fullName || valData.referrer.username;
+        }
+      } catch {
+        // Local fallback check
+        const localUsers = getUsers();
+        referrerUser = localUsers.find(
+          (u) =>
+            u.referralCode?.trim().toUpperCase() === codeClean ||
+            u.username?.trim().toUpperCase() === codeClean
+        );
+
+        if (!referrerUser && codeClean === 'VXREF-ADMIN') {
+          referrerUser = localUsers.find((u) => u.role === 'ADMIN');
+        }
+
+        if (referrerUser) {
+          if (
+            referrerUser.username.toLowerCase() === username.trim().toLowerCase() ||
+            referrerUser.email.toLowerCase() === email.trim().toLowerCase()
+          ) {
+            setError('You cannot refer yourself. Please enter a valid referral code or leave the field blank.');
+            return;
+          }
+          referrerUsername = referrerUser.username;
+          referrerDisplayName = referrerUser.fullName || referrerUser.username;
+        } else {
+          setError(`Invalid referral code "${referralCodeInput.trim()}" provided.`);
+          return;
+        }
       }
     }
 
@@ -485,6 +494,48 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
     }
 
     const currentUsers = getUsers();
+
+    // Reward Allocation: $2 USD to newUser.bonusBalance, $5 USD to referrer.referralEarnings
+    if (referrerUser && !newUser.hasReceivedSignupBonus) {
+      newUser.bonusBalance = 2.0;
+      newUser.hasReceivedSignupBonus = true;
+
+      const userBonusTx = {
+        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+        userId: newUser.userId,
+        type: 'REFERRAL_REWARD' as const,
+        amount: 2.0,
+        currency: 'USD',
+        status: 'COMPLETED' as const,
+        timestamp: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        idempotencyKey: `SIGNUP-BONUS-${newUser.userId}`,
+        note: 'Referral Welcome Bonus ($2.00)'
+      };
+
+      const allTxs = getTransactions();
+      allTxs.unshift(userBonusTx);
+
+      const rIdx = currentUsers.findIndex((u) => u.userId === referrerUser?.userId || u.username === referrerUser?.username);
+      if (rIdx !== -1) {
+        currentUsers[rIdx].referralEarnings = (currentUsers[rIdx].referralEarnings || 0) + 5.0;
+        const refRewardTx = {
+          id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+          userId: currentUsers[rIdx].userId,
+          type: 'REFERRAL_REWARD' as const,
+          amount: 5.0,
+          currency: 'USD',
+          status: 'COMPLETED' as const,
+          timestamp: new Date().toISOString(),
+          processedAt: new Date().toISOString(),
+          idempotencyKey: `REF-REWARD-${currentUsers[rIdx].userId}-${newUser.userId}`,
+          note: `Referral Reward for registration of @${newUser.username} ($5.00)`
+        };
+        allTxs.unshift(refRewardTx);
+      }
+      saveTransactions(allTxs);
+    }
+
     currentUsers.push(newUser);
     saveUsers(currentUsers);
     saveCurrentSession(newUser);
@@ -745,7 +796,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
                     <label className="block text-xs font-semibold text-slate-300">Invite / Referral Code</label>
                     <span className="text-[10px] text-emerald-400 font-bold flex items-center space-x-1">
                       <Gift className="w-3 h-3" />
-                      <span>Get $5 Signup Bonus</span>
+                      <span>Get $2 Welcome Bonus</span>
                     </span>
                   </div>
                   <input

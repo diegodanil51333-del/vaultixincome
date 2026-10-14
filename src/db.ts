@@ -58,7 +58,7 @@ export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
 ];
 
 export const DEFAULT_REFERRAL_CONFIG: ReferralConfig = {
-  bonusAmount: 10.0,
+  bonusAmount: 5.0,
   withdrawalThreshold: 50.0,
   isActive: true
 };
@@ -480,7 +480,43 @@ export const SYSTEM_ADMIN_ACCOUNT: User = {
   createdAt: '2026-01-01T00:00:00.000Z'
 };
 
-export const SEED_ACCOUNTS: User[] = [];
+export const SEED_ACCOUNTS: User[] = [
+  SYSTEM_ADMIN_ACCOUNT,
+  {
+    userId: 'USR-009865',
+    accountId: 'VX-986501',
+    username: 'crypto_whale',
+    fullName: 'Robert Sterling',
+    email: 'robert.sterling@vaultix.pro',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 15078.0,
+    referralEarnings: 45.0,
+    bonusBalance: 0.0,
+    totalDeposits: 20000.0,
+    totalInvestments: 5000.0,
+    totalProfitLoss: 1250.0,
+    referralCode: 'VXREF-9865',
+    createdAt: '2026-01-15T10:00:00.000Z'
+  },
+  {
+    userId: 'USR-003316',
+    accountId: 'VX-331601',
+    username: 'alex_trader',
+    fullName: 'Alex Morgan',
+    email: 'alex.m@vaultix.pro',
+    role: 'USER',
+    accountStatus: 'ACTIVE',
+    balance: 5200.0,
+    referralEarnings: 20.0,
+    bonusBalance: 0.0,
+    totalDeposits: 8000.0,
+    totalInvestments: 3000.0,
+    totalProfitLoss: 450.0,
+    referralCode: 'VXREF-3316',
+    createdAt: '2026-02-01T12:00:00.000Z'
+  }
+];
 export const SEED_TRANSACTIONS: Transaction[] = [];
 
 async function syncUsersToFirestore(users: User[]) {
@@ -1348,22 +1384,22 @@ export async function approveDepositTransaction(
         targetTx.cashbackAwarded = false;
       }
 
-      // Referral Signup Bonuses ($3 for new user, $5 for direct referrer)
+      // Referral Signup Bonuses ($2 for new user to bonusBalance, $5 for direct referrer to referralEarnings)
       let referrerUserToSave: User | null = null;
       if ((targetUser.referredBy || targetUser.referredByUsername) && !targetUser.hasReceivedSignupBonus) {
-        targetUser.balance += 3.0;
+        targetUser.bonusBalance = (targetUser.bonusBalance || 0) + 2.0;
         targetUser.hasReceivedSignupBonus = true;
 
         const userSignupBonusTx: Transaction = {
           id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
           userId: targetUser.userId,
           type: 'REFERRAL_REWARD',
-          amount: 3.0,
+          amount: 2.0,
           currency: 'USD',
           status: 'COMPLETED',
           timestamp: new Date().toISOString(),
           processedAt: new Date().toISOString(),
-          note: `Referral Signup Welcome Bonus ($3.00)`
+          note: `Referral Signup Welcome Bonus ($2.00)`
         };
         extraTransactions.push(userSignupBonusTx);
 
@@ -1375,7 +1411,6 @@ export async function approveDepositTransaction(
           if (referrerDoc.exists()) {
             const referrerData = referrerDoc.data() as User;
             referrerUserToSave = { ...referrerData };
-            referrerUserToSave.balance = (referrerUserToSave.balance || 0) + 5.0;
             referrerUserToSave.referralEarnings = (referrerUserToSave.referralEarnings || 0) + 5.0;
 
             const referrerBonusTx: Transaction = {
@@ -1955,87 +1990,75 @@ export async function subscribeInvestmentPlan(
   activeInvestmentSubscriptions.add(user.userId);
 
   try {
-    const dailyReturn = (amount * (plan.dailyYield / 100));
-    const invId = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
-    const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
+    // ROUTE FINANCIAL CHANGES THROUGH THE TRUSTED BACKEND
+    let backendData: any = null;
+    try {
+      const response = await fetch('/api/invest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.userId,
+          planId: plan.id,
+          planName: plan.name,
+          asset: plan.asset,
+          amount,
+          dailyYield: plan.dailyYield,
+          lockDays: plan.lockDays,
+          idempotencyKey
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Investment processing failed.');
+      }
+      backendData = data;
+    } catch (apiErr: any) {
+      const msg = apiErr.message || '';
+      if (msg.includes('Insufficient balance') || msg.includes('CONCURRENT OPERATION')) {
+        throw new Error(msg);
+      }
+      // If backend is unavailable, do not create an active investment through an insecure client-side fallback.
+      // Leave the financial records unchanged and explain that the investment could not be completed.
+      throw new Error(
+        msg && !msg.includes('Failed to fetch') && !msg.includes('permission') && !msg.includes('PERMISSION_DENIED')
+          ? msg
+          : 'Investment could not be completed at this time. Your balance remains unchanged. Please try again.'
+      );
+    }
+
+    const updatedUser: User = {
+      ...user,
+      balance: backendData.user.balance,
+      totalInvestments: backendData.user.totalInvestments
+    };
 
     const newInv: UserInvestment = {
-      id: invId,
+      id: backendData.investment.id,
       userId: user.userId,
       planId: plan.id,
-      planName: plan.name,
-      asset: plan.asset,
-      amount: amount,
-      dailyReturn: dailyReturn,
-      startDate: new Date().toISOString(),
-      durationDays: plan.lockDays,
+      planName: backendData.investment.planName || plan.name,
+      asset: backendData.investment.asset || plan.asset,
+      amount: backendData.investment.amount || amount,
+      dailyReturn: backendData.investment.dailyReturn || (amount * (plan.dailyYield / 100)),
+      startDate: backendData.investment.startDate || new Date().toISOString(),
+      durationDays: backendData.investment.durationDays || plan.lockDays,
       status: 'ACTIVE',
       idempotencyKey: idempotencyKey || undefined
     };
 
     const invTx: Transaction = {
-      id: txId,
+      id: backendData.tx.id,
       userId: user.userId,
       type: 'YIELD',
       amount: amount,
       currency: plan.asset,
       status: 'COMPLETED',
-      timestamp: new Date().toISOString(),
-      processedAt: new Date().toISOString(),
+      timestamp: backendData.tx.timestamp || new Date().toISOString(),
+      processedAt: backendData.tx.processedAt || new Date().toISOString(),
       idempotencyKey: idempotencyKey || undefined,
       note: `Subscribed to ${plan.name} ($${amount.toFixed(2)})`
     };
-
-    const updatedUser: User = {
-      ...user,
-      balance: Math.max(0, Math.round((currentBalance - amount) * 100) / 100),
-      totalInvestments: Math.round(((user.totalInvestments || 0) + amount) * 100) / 100
-    };
-
-    // ATOMIC FIRESTORE COMMIT:
-    // First, attempt the atomic runTransaction across users, investments, and transactions.
-    try {
-      await runTransaction(db, async (firestoreTx) => {
-        const userRef = doc(db, 'users', user.userId);
-        const userDoc = await firestoreTx.get(userRef);
-        if (userDoc.exists()) {
-          const cloudData = userDoc.data() as User;
-          const cloudBal = typeof cloudData.balance === 'number' ? cloudData.balance : 0;
-          if (cloudBal < amount) {
-            throw new Error(`Insufficient cloud balance. Available: $${cloudBal.toFixed(2)}.`);
-          }
-          firestoreTx.update(userRef, {
-            balance: Math.max(0, Math.round((cloudBal - amount) * 100) / 100),
-            totalInvestments: Math.round(((cloudData.totalInvestments || 0) + amount) * 100) / 100
-          });
-        }
-        const invRef = doc(db, 'investments', newInv.id);
-        const txRef = doc(db, 'transactions', invTx.id);
-        firestoreTx.set(invRef, cleanFirestoreData(newInv));
-        firestoreTx.set(txRef, cleanFirestoreData(invTx));
-      });
-    } catch {
-      // If Firestore security rules restrict client-side user document balance mutation,
-      // execute the verified recoverable cloud write to /investments (permitted by zero-trust rules):
-      await setDoc(doc(db, 'investments', newInv.id), cleanFirestoreData(newInv));
-
-      // Attempt transaction record write to cloud ledger
-      try {
-        await setDoc(doc(db, 'transactions', invTx.id), cleanFirestoreData(invTx));
-      } catch {
-        // Recorded in authoritative local ledger and audit trail
-      }
-
-      // Attempt user profile balance update if permitted
-      try {
-        await updateDoc(doc(db, 'users', user.userId), {
-          balance: updatedUser.balance,
-          totalInvestments: updatedUser.totalInvestments
-        });
-      } catch {
-        // Balance in cloud is protected by zero-trust security rules
-      }
-    }
 
     const targetUser = updatedUser;
 
@@ -2049,12 +2072,16 @@ export async function subscribeInvestmentPlan(
     saveUsers(users, false);
 
     const invs = getInvestmentsLocal();
-    invs.unshift(newInv);
-    saveInvestments(invs, false);
+    if (!invs.some((i) => i.id === newInv.id)) {
+      invs.unshift(newInv);
+      saveInvestments(invs, false);
+    }
 
     const txs = getTransactionsLocal();
-    txs.unshift(invTx);
-    saveTransactions(txs, false);
+    if (!txs.some((t) => t.id === invTx.id)) {
+      txs.unshift(invTx);
+      saveTransactions(txs, false);
+    }
 
     saveCurrentSession(targetUser);
 
@@ -2067,10 +2094,12 @@ export async function subscribeInvestmentPlan(
       targetUsername: targetUser.username,
       previousValue: `$${currentBalance.toFixed(2)}`,
       newValue: `$${targetUser.balance.toFixed(2)}`,
-      reason: `Subscribed $${amount.toFixed(2)} to ${plan.name} (${newInv.id})`,
+      reason: `Subscribed $${amount.toFixed(2)} to ${plan.name} (${newInv.id}) via trusted backend`,
       timestamp: new Date().toISOString()
     });
     saveAuditLogs(logs);
+
+    emitDataUpdateEvents('all');
 
     return { user: targetUser, investment: newInv };
   } finally {

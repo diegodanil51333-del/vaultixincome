@@ -142,7 +142,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     allInvs.push(newInv);
     saveInvitations(allInvs);
 
-    const bonusAmt = refConfig.bonusAmount || 25.0;
+    const bonusAmt = 5.0;
     const updatedUser: User = {
       ...user,
       referralEarnings: user.referralEarnings + bonusAmt
@@ -158,7 +158,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     onUserUpdated(updatedUser);
 
     setInviteeUsername('');
-    setSuccess(`Successfully invited @${recipient.username}! $${bonusAmt} referral credit added to your referral balance.`);
+    setSuccess(`Successfully invited @${recipient.username}! $${bonusAmt.toFixed(2)} referral credit added to your referral balance.`);
   };
 
   return (
@@ -166,10 +166,10 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
       <div>
         <h2 className="text-xl font-bold text-white flex items-center space-x-2">
           <Users className="w-5 h-5 text-[#D4AF37]" />
-          <span>Invite Friends & Referral Earnings</span>
+          <span>Invite Friends & Earn Rewards</span>
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          Earn ${refConfig.bonusAmount} USD bonus per referral. Minimum withdrawal threshold: ${minThreshold}
+          Share your unique referral code with friends. Earn $5 USD for every eligible friend who registers using your code.
         </p>
       </div>
 
@@ -178,12 +178,19 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
           <div className="w-12 h-12 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center shrink-0">
             <Award className="w-6 h-6 text-[#D4AF37]" />
           </div>
-          <div>
-            <h3 className="text-base font-bold text-white">${refConfig.bonusAmount} Referral Reward Bonus</h3>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white">Your Referral Reward: $5 USD</h3>
             <p className="text-xs text-slate-300">
-              Referral earnings unlock for withdrawal upon reaching the ${minThreshold} threshold.
+              Your friend also receives a $2 USD welcome bonus when they register using your referral code.
             </p>
           </div>
+        </div>
+
+        <div className="bg-[#10141D]/80 border border-[#2A3447] rounded-xl p-3.5 text-xs text-slate-300 space-y-1">
+          <span className="font-bold text-[#D4AF37] block">Referral Earnings Withdrawal Threshold: $50 USD</span>
+          <p className="text-slate-400 text-[11px] leading-relaxed">
+            Referral earnings become eligible for withdrawal when your available referral earnings reach $50 USD, subject to the platform’s existing withdrawal rules.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-[#2A3447]">
@@ -200,7 +207,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
           <div>
             <span className="text-xs text-slate-400">Withdrawal Threshold</span>
             <div className="text-xl font-extrabold text-[#06B6D4] mt-0.5">
-              ${minThreshold.toFixed(2)}
+              $50.00 USD
             </div>
           </div>
         </div>

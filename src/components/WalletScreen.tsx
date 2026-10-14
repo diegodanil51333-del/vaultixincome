@@ -524,7 +524,7 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
               ${(user.bonusBalance || user.referralEarnings || 0).toFixed(2)} USD
             </span>
             <p className="text-[11px] text-slate-400 mt-1">
-              Referral signup rewards ($3 new user, $5 referrer) are stored here. Minimum $50 required to withdraw.
+              Referral rewards ($2 welcome bonus, $5 referrer) are stored here. Minimum $50 required to withdraw.
             </p>
           </div>
 

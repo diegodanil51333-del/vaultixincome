@@ -1,13 +1,6 @@
+import { authoritativeStore } from './authoritative-store';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getFirestore,
-  doc,
-  runTransaction,
-  collection,
-  query,
-  where,
-  getDocs
-} from 'firebase/firestore';
+import { getFirestore, doc, setDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyD0UqOpQzQ3lM7kMcDclnkZIQXFS8s0xEE",
@@ -44,108 +37,54 @@ export default async function handler(req: any, res: any) {
   const { userId, planId, amount, planName, asset, dailyYield, lockDays, idempotencyKey } = req.body || {};
 
   if (!userId || !planId || !amount || amount <= 0 || isNaN(amount)) {
-    return res.status(400).json({ error: 'Invalid investment parameters.' });
+    return res.status(400).json({ error: 'Invalid investment parameters. Amount must be positive.' });
   }
 
   try {
-    // 1. Idempotency Check: prevent duplicate processing across network retries
-    if (idempotencyKey) {
-      const q = query(
-        collection(db, 'investments'),
-        where('userId', '==', userId),
-        where('idempotencyKey', '==', idempotencyKey)
-      );
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        const invData = existing.docs[0].data();
-        return res.status(200).json({
-          success: true,
-          message: 'Already processed (idempotent)',
-          investment: invData
-        });
-      }
-    }
-
-    const invId = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
-    const txId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
-    const dailyReturn = (amount * ((dailyYield || 2.0) / 100));
-
-    const newInv = {
-      id: invId,
-      userId: userId,
-      planId: planId,
-      planName: planName || 'Yield Vault Plan',
-      asset: asset || 'USDT',
-      amount: amount,
-      dailyReturn: dailyReturn,
-      startDate: new Date().toISOString(),
-      durationDays: lockDays || 14,
-      status: 'ACTIVE',
-      idempotencyKey: idempotencyKey || undefined
-    };
-
-    const invTx = {
-      id: txId,
-      userId: userId,
-      type: 'YIELD',
-      amount: amount,
-      currency: asset || 'USDT',
-      status: 'COMPLETED',
-      timestamp: new Date().toISOString(),
-      processedAt: new Date().toISOString(),
-      idempotencyKey: idempotencyKey || undefined,
-      note: `Subscribed to ${planName || 'Investment Plan'} ($${amount.toFixed(2)})`
-    };
-
-    // 2. ATOMIC FIRESTORE TRANSACTION:
-    // Guarantees balance check, deduction, investment record, and ledger entry commit atomically.
-    const result = await runTransaction(db, async (firestoreTx) => {
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await firestoreTx.get(userRef);
-
-      if (!userDoc.exists()) {
-        throw new Error(`USER NOT FOUND: Target user ${userId} does not exist in Firestore.`);
-      }
-
-      const cloudUserData = userDoc.data();
-      const currentBalance = typeof cloudUserData.balance === 'number' ? cloudUserData.balance : 0;
-
-      if (currentBalance < amount) {
-        throw new Error(
-          `Insufficient balance. Authoritative balance is $${currentBalance.toFixed(2)}, but investment requires $${amount.toFixed(2)}.`
-        );
-      }
-
-      const updatedUser = {
-        ...cloudUserData,
-        balance: Math.max(0, Math.round((currentBalance - amount) * 100) / 100),
-        totalInvestments: Math.round(((cloudUserData.totalInvestments || 0) + amount) * 100) / 100
-      };
-
-      const invRef = doc(db, 'investments', newInv.id);
-      const txRef = doc(db, 'transactions', invTx.id);
-
-      firestoreTx.set(userRef, cleanFirestoreData(updatedUser));
-      firestoreTx.set(invRef, cleanFirestoreData(newInv));
-      firestoreTx.set(txRef, cleanFirestoreData(invTx));
-
-      return {
-        user: updatedUser,
-        investment: newInv,
-        tx: invTx
-      };
+    // 1. ATOMIC COMMIT VIA AUTHORITATIVE STORE
+    // Guarantees balance check, atomic deduction, investment creation, and ledger record
+    const result = await authoritativeStore.executeInvestmentAtomic({
+      userId,
+      planId,
+      planName,
+      asset,
+      amount,
+      dailyYield,
+      lockDays,
+      idempotencyKey
     });
+
+    // 2. Best-effort Cloud Firestore sync for investment record
+    try {
+      await setDoc(doc(db, 'investments', result.investment.id), cleanFirestoreData(result.investment));
+    } catch {
+      // Handled cleanly; authoritative records are safely preserved
+    }
 
     return res.status(200).json({
       success: true,
       user: result.user,
       investment: result.investment,
-      tx: result.tx
+      tx: result.tx,
+      alreadyProcessed: result.alreadyProcessed || false
     });
   } catch (err: any) {
-    console.error('Serverless investment processing error:', err);
+    console.error('Investment processing backend error:', err);
+    // Replace raw database/Firebase errors with clear user-facing messages
+    const message = err.message || '';
+    let userMessage = 'Investment could not be completed. Your balance was not deducted. Please try again.';
+
+    if (message.includes('Insufficient balance')) {
+      userMessage = message;
+    } else if (message.includes('CONCURRENT OPERATION')) {
+      userMessage = message;
+    } else if (message.includes('parameters') || message.includes('boundaries')) {
+      userMessage = message;
+    }
+
     return res.status(400).json({
-      error: err.message || 'Investment processing failed.'
+      success: false,
+      error: userMessage
     });
   }
 }
