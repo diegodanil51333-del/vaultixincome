@@ -1,6 +1,6 @@
 import { authoritativeStore } from './authoritative-store';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, updateDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyD0UqOpQzQ3lM7kMcDclnkZIQXFS8s0xEE",
@@ -54,11 +54,24 @@ export default async function handler(req: any, res: any) {
       idempotencyKey
     });
 
-    // 2. Best-effort Cloud Firestore sync for investment record
+    // 2. Best-effort Cloud Firestore sync for investment record, user balance, and ledger
     try {
       await setDoc(doc(db, 'investments', result.investment.id), cleanFirestoreData(result.investment));
     } catch {
-      // Handled cleanly; authoritative records are safely preserved
+      // Handled cleanly
+    }
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        balance: result.user.balance,
+        totalInvestments: result.user.totalInvestments
+      });
+    } catch {
+      // Handled cleanly
+    }
+    try {
+      await setDoc(doc(db, 'transactions', result.tx.id), cleanFirestoreData(result.tx));
+    } catch {
+      // Handled cleanly
     }
 
     return res.status(200).json({
