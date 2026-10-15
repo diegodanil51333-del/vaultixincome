@@ -63,12 +63,16 @@ export function App() {
       }
     };
     window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('vaultix_investments_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
     setIsInitialized(true);
 
     return () => {
       window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('vaultix_investments_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
   }, []);

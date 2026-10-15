@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Transaction } from '../types';
-import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions } from '../db';
+import { getUsers, saveUsers, saveCurrentSession, getTransactions, saveTransactions, processRegistrationBonuses } from '../db';
 import { auth, db, doc, setDoc, getDoc, collection, getDocs, query, where, isFirebaseConfigured, cleanFirestoreData } from '../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, User as FirebaseUser } from 'firebase/auth';
 import { Lock, User as UserIcon, CheckCircle, AlertCircle, Gift, ArrowLeft, RefreshCw } from 'lucide-react';
@@ -493,58 +493,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       return;
     }
 
-    const currentUsers = getUsers();
+    // Process welcome bonus & referral reward atomically and idempotently
+    const bonusResult = processRegistrationBonuses(newUser, referrerUser);
+    const finalUser = bonusResult.newUser;
 
-    // Reward Allocation: $2 USD to newUser.bonusBalance, $5 USD to referrer.referralEarnings
-    if (referrerUser && !newUser.hasReceivedSignupBonus) {
-      newUser.bonusBalance = 2.0;
-      newUser.hasReceivedSignupBonus = true;
-
-      const userBonusTx = {
-        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-        userId: newUser.userId,
-        type: 'REFERRAL_REWARD' as const,
-        amount: 2.0,
-        currency: 'USD',
-        status: 'COMPLETED' as const,
-        timestamp: new Date().toISOString(),
-        processedAt: new Date().toISOString(),
-        idempotencyKey: `SIGNUP-BONUS-${newUser.userId}`,
-        note: 'Referral Welcome Bonus ($2.00)'
-      };
-
-      const allTxs = getTransactions();
-      allTxs.unshift(userBonusTx);
-
-      const rIdx = currentUsers.findIndex((u) => u.userId === referrerUser?.userId || u.username === referrerUser?.username);
-      if (rIdx !== -1) {
-        currentUsers[rIdx].referralEarnings = (currentUsers[rIdx].referralEarnings || 0) + 5.0;
-        const refRewardTx = {
-          id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-          userId: currentUsers[rIdx].userId,
-          type: 'REFERRAL_REWARD' as const,
-          amount: 5.0,
-          currency: 'USD',
-          status: 'COMPLETED' as const,
-          timestamp: new Date().toISOString(),
-          processedAt: new Date().toISOString(),
-          idempotencyKey: `REF-REWARD-${currentUsers[rIdx].userId}-${newUser.userId}`,
-          note: `Referral Reward for registration of @${newUser.username} ($5.00)`
-        };
-        allTxs.unshift(refRewardTx);
-      }
-      saveTransactions(allTxs);
+    // Best-effort backend authoritative store sync
+    try {
+      fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user: finalUser,
+          referralCode: referralCodeInput.trim()
+        })
+      }).catch(() => {});
+    } catch {
+      // Ignored in offline mode
     }
-
-    currentUsers.push(newUser);
-    saveUsers(currentUsers);
-    saveCurrentSession(newUser);
 
     setMessage('Your account has been created successfully. Welcome to Vaultix Income!');
 
     setTimeout(() => {
-      saveCurrentSession(newUser);
-      onLoginSuccess(newUser);
+      saveCurrentSession(finalUser);
+      onLoginSuccess(finalUser);
     }, 1200);
   };
 

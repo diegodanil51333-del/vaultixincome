@@ -35,6 +35,7 @@ export interface CryptoWalletConfig {
 
 export interface ReferralConfig {
   bonusAmount: number;
+  signupBonusAmount?: number;
   withdrawalThreshold: number;
   isActive: boolean;
 }

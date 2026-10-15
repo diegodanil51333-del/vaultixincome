@@ -57,6 +57,8 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
     return () => { isCancelled = true; };
   }, [selectedSymbol, depositAmount]);
 
+  const [userTransactions, setUserTransactions] = useState<Transaction[]>(() => getTransactions().filter((tx) => tx.userId === user.userId));
+
   // Real-time synchronization interval for instant status/balance updates
   useEffect(() => {
     const handleUpdate = () => {
@@ -64,21 +66,23 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
       if (freshUser) {
         onUserUpdated(freshUser);
       }
+      setUserTransactions(getTransactions().filter((tx) => tx.userId === user.userId));
     };
 
     const interval = setInterval(handleUpdate, 1000);
     window.addEventListener('vaultix_users_updated', handleUpdate);
     window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('vaultix_users_updated', handleUpdate);
       window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
     };
   }, [user.userId]);
 
   const selectedWallet = wallets.find((w) => w.symbol === selectedSymbol) || wallets[0];
-  const userTransactions = getTransactions().filter((tx) => tx.userId === user.userId);
 
   const handleCopy = () => {
     if (selectedWallet) {

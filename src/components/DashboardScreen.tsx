@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Transaction, InvestmentPlan } from '../types';
 import { getInvestments, getTransactions, getPlans } from '../db';
 import { 
@@ -47,10 +47,30 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onNaviga
   const [calcAmount, setCalcAmount] = useState<number>(1000);
   const [calcDays, setCalcDays] = useState<number>(14);
 
-  const allInvestments = getInvestments().filter((inv) => inv.userId === user.userId);
+  const [allInvestments, setAllInvestments] = useState<any[]>(() => getInvestments().filter((inv) => inv.userId === user.userId));
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>(() => getTransactions().filter((tx) => tx.userId === user.userId));
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setAllInvestments(getInvestments().filter((inv) => inv.userId === user.userId));
+      setAllTransactions(getTransactions().filter((tx) => tx.userId === user.userId));
+    };
+
+    window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('vaultix_investments_updated', handleUpdate);
+    window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('vaultix_investments_updated', handleUpdate);
+      window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [user.userId]);
+
   const activeInvestments = allInvestments.filter((inv) => inv.status === 'ACTIVE');
   const completedInvestments = allInvestments.filter((inv) => inv.status === 'COMPLETED');
-  const allTransactions = getTransactions().filter((tx) => tx.userId === user.userId);
   const availablePlans = getPlans().filter((p) => p.isActive);
 
   // Dynamic Financial Metrics Calculation

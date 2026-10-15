@@ -59,6 +59,7 @@ export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
 
 export const DEFAULT_REFERRAL_CONFIG: ReferralConfig = {
   bonusAmount: 5.0,
+  signupBonusAmount: 2.0,
   withdrawalThreshold: 50.0,
   isActive: true
 };
@@ -592,8 +593,23 @@ export function initFirestoreListeners() {
                 }
               });
 
+              const localUsers = getUsersLocal();
               const userMap = new Map<string, User>();
               firestoreUsers.forEach((f) => userMap.set(f.userId, f));
+              localUsers.forEach((l) => {
+                const fsUser = userMap.get(l.userId);
+                if (fsUser) {
+                  userMap.set(l.userId, {
+                    ...fsUser,
+                    bonusBalance: Math.max(l.bonusBalance || 0, fsUser.bonusBalance || 0),
+                    referralEarnings: Math.max(l.referralEarnings || 0, fsUser.referralEarnings || 0),
+                    hasReceivedSignupBonus: Boolean(l.hasReceivedSignupBonus || fsUser.hasReceivedSignupBonus),
+                    hasReceivedFirstDepositBonus: Boolean(l.hasReceivedFirstDepositBonus || fsUser.hasReceivedFirstDepositBonus),
+                  });
+                } else {
+                  userMap.set(l.userId, l);
+                }
+              });
               const merged = Array.from(userMap.values());
               localStorage.setItem(USERS_KEY, JSON.stringify(merged));
               emitDataUpdateEvents('users');
@@ -612,7 +628,17 @@ export function initFirestoreListeners() {
                 }
               });
 
-              localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(firestoreTxs));
+              const localTxs = getTransactionsLocal();
+              const txMap = new Map<string, Transaction>();
+              firestoreTxs.forEach((f) => txMap.set(f.id, f));
+              localTxs.forEach((l) => {
+                if (!txMap.has(l.id)) {
+                  txMap.set(l.id, l);
+                }
+              });
+              const mergedTxs = Array.from(txMap.values());
+              mergedTxs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+              localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(mergedTxs));
               emitDataUpdateEvents('txs');
             }
           }, (err: any) => {
@@ -629,7 +655,16 @@ export function initFirestoreListeners() {
                 }
               });
 
-              localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(firestoreInvs));
+              const localInvs = getInvestmentsLocal();
+              const invMap = new Map<string, UserInvestment>();
+              firestoreInvs.forEach((inv) => invMap.set(inv.id, inv));
+              localInvs.forEach((inv) => {
+                if (!invMap.has(inv.id)) {
+                  invMap.set(inv.id, inv);
+                }
+              });
+              const merged = Array.from(invMap.values());
+              localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(merged));
               emitDataUpdateEvents('investments');
             }
           }, (err: any) => {
@@ -650,17 +685,32 @@ export function initFirestoreListeners() {
                 const localUser = currentList[idx];
                 const activeInvs = getInvestmentsLocal()
                   .filter(inv => inv.userId === myData.userId && inv.status === 'ACTIVE');
-                const activeDeployed = activeInvs.reduce((sum, inv) => sum + inv.amount, 0);
+                const localActiveDeployed = activeInvs.reduce((sum, inv) => sum + inv.amount, 0);
 
-                const reconciledBalance = (typeof localUser.balance === 'number' && typeof myData.balance === 'number')
-                  ? (localUser.balance < myData.balance ? localUser.balance : myData.balance)
-                  : myData.balance;
+                const cloudTotalInvestments = myData.totalInvestments || 0;
+                const localTotalInvestments = localUser.totalInvestments || 0;
+                const pendingInvestmentDeduction = Math.max(0, localTotalInvestments - cloudTotalInvestments);
+                const baseBalance = typeof myData.balance === 'number' ? myData.balance : (localUser.balance || 0);
+                const reconciledBalance = Math.max(0, baseBalance - pendingInvestmentDeduction);
 
-                currentList[idx] = {
+                const reconciledUser: User = {
                   ...myData,
                   balance: reconciledBalance,
-                  totalInvestments: Math.max(localUser.totalInvestments || 0, myData.totalInvestments || 0, activeDeployed)
+                  totalInvestments: Math.max(localTotalInvestments, cloudTotalInvestments, localActiveDeployed),
+                  bonusBalance: Math.max(localUser.bonusBalance || 0, myData.bonusBalance || 0),
+                  referralEarnings: Math.max(localUser.referralEarnings || 0, myData.referralEarnings || 0),
+                  hasReceivedSignupBonus: Boolean(localUser.hasReceivedSignupBonus || myData.hasReceivedSignupBonus),
+                  hasReceivedFirstDepositBonus: Boolean(localUser.hasReceivedFirstDepositBonus || myData.hasReceivedFirstDepositBonus),
+                  referredBy: myData.referredBy || localUser.referredBy,
+                  referredByUsername: myData.referredByUsername || localUser.referredByUsername,
+                  referredByDisplayName: myData.referredByDisplayName || localUser.referredByDisplayName
                 };
+                currentList[idx] = reconciledUser;
+
+                const currSess = getCurrentSession();
+                if (currSess && (currSess.userId === myData.userId || currSess.email?.toLowerCase() === myData.email?.toLowerCase())) {
+                  saveCurrentSession({ ...currSess, ...reconciledUser });
+                }
               } else {
                 currentList.push(myData);
               }
@@ -674,14 +724,30 @@ export function initFirestoreListeners() {
           const userTxsQuery = query(collection(db, 'transactions'), where('userId', '==', currentUser.uid));
           unsubscribeTxs = onSnapshot(userTxsQuery, (snapshot: any) => {
             if (snapshot) {
-              const myTxs: Transaction[] = [];
+              const cloudTxs: Transaction[] = [];
               snapshot.forEach((d: any) => {
                 const data = d.data() as Transaction;
                 if (data && data.id) {
-                  myTxs.push(data);
+                  cloudTxs.push(data);
                 }
               });
-              localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(myTxs));
+
+              // Merge cloud transactions with existing local transactions
+              const localTxs = getTransactionsLocal();
+              const txMap = new Map<string, Transaction>();
+              cloudTxs.forEach((t) => txMap.set(t.id, t));
+              localTxs.forEach((t) => {
+                const matchedCloud = t.idempotencyKey
+                  ? cloudTxs.find((ct) => ct.idempotencyKey === t.idempotencyKey || ct.id === t.id)
+                  : cloudTxs.find((ct) => ct.id === t.id);
+                if (!matchedCloud && !txMap.has(t.id)) {
+                  txMap.set(t.id, t);
+                }
+              });
+              const mergedTxs = Array.from(txMap.values());
+              mergedTxs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+              localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(mergedTxs));
               emitDataUpdateEvents('txs');
             }
           }, (err: any) => {
@@ -844,6 +910,110 @@ export function saveUsers(users: User[], syncToCloud = true) {
     syncUsersToFirestore(merged);
   }
   emitDataUpdateEvents('users');
+}
+
+export function processRegistrationBonuses(
+  newUser: User,
+  referrerUser?: User | null
+): { newUser: User; referrerUser?: User; transactions: Transaction[] } {
+  const newTxs: Transaction[] = [];
+  const refConfig = getReferralConfig();
+
+  if (refConfig.isActive === false) {
+    return { newUser, referrerUser: referrerUser || undefined, transactions: [] };
+  }
+
+  const welcomeBonusAmt = refConfig.signupBonusAmount || 2.0;
+  const referrerRewardAmt = refConfig.bonusAmount || 5.0;
+
+  const allTxs = getTransactionsLocal();
+  const currentUsers = getUsersLocal();
+
+  // Self-referral prevention guard
+  const isSelf = referrerUser && (
+    referrerUser.userId === newUser.userId ||
+    referrerUser.username?.toLowerCase() === newUser.username?.toLowerCase() ||
+    referrerUser.email?.toLowerCase() === newUser.email?.toLowerCase()
+  );
+
+  if (referrerUser && !isSelf) {
+    // 1. Welcome Bonus for new user
+    const signupIdempKey = `SIGNUP-BONUS-${newUser.userId}`;
+    const alreadyCreditedSignup = newUser.hasReceivedSignupBonus || allTxs.some((t) => t.idempotencyKey === signupIdempKey);
+
+    if (!alreadyCreditedSignup) {
+      newUser.bonusBalance = Math.round(((newUser.bonusBalance || 0) + welcomeBonusAmt) * 100) / 100;
+      newUser.hasReceivedSignupBonus = true;
+
+      const userBonusTx: Transaction = {
+        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+        userId: newUser.userId,
+        type: 'REFERRAL_REWARD',
+        amount: welcomeBonusAmt,
+        currency: 'USD',
+        status: 'COMPLETED',
+        timestamp: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        idempotencyKey: signupIdempKey,
+        note: `Referral Welcome Bonus ($${welcomeBonusAmt.toFixed(2)})`
+      };
+      allTxs.unshift(userBonusTx);
+      newTxs.push(userBonusTx);
+    }
+
+    // 2. Referral Reward for referrer
+    const refRewardIdempKey = `REF-REWARD-${referrerUser.userId}-${newUser.userId}`;
+    const alreadyCreditedRef = allTxs.some((t) => t.idempotencyKey === refRewardIdempKey);
+
+    const rIdx = currentUsers.findIndex((u) => u.userId === referrerUser.userId || u.username === referrerUser.username);
+    const targetReferrer = rIdx !== -1 ? currentUsers[rIdx] : referrerUser;
+
+    if (!alreadyCreditedRef && targetReferrer) {
+      targetReferrer.referralEarnings = Math.round(((targetReferrer.referralEarnings || 0) + referrerRewardAmt) * 100) / 100;
+
+      const refRewardTx: Transaction = {
+        id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+        userId: targetReferrer.userId,
+        type: 'REFERRAL_REWARD',
+        amount: referrerRewardAmt,
+        currency: 'USD',
+        status: 'COMPLETED',
+        timestamp: new Date().toISOString(),
+        processedAt: new Date().toISOString(),
+        idempotencyKey: refRewardIdempKey,
+        note: `Referral Reward for registration of @${newUser.username} ($${referrerRewardAmt.toFixed(2)})`
+      };
+      allTxs.unshift(refRewardTx);
+      newTxs.push(refRewardTx);
+
+      if (rIdx !== -1) {
+        currentUsers[rIdx] = targetReferrer;
+      } else {
+        currentUsers.push(targetReferrer);
+      }
+    }
+  }
+
+  // Update new user in currentUsers
+  const uIdx = currentUsers.findIndex((u) => u.userId === newUser.userId);
+  if (uIdx !== -1) {
+    currentUsers[uIdx] = newUser;
+  } else {
+    currentUsers.push(newUser);
+  }
+
+  saveUsers(currentUsers);
+  saveTransactions(allTxs);
+  saveCurrentSession(newUser);
+
+  emitDataUpdateEvents('users');
+  emitDataUpdateEvents('txs');
+
+  return {
+    newUser,
+    referrerUser: referrerUser || undefined,
+    transactions: newTxs
+  };
 }
 
 function getTransactionsLocal(): Transaction[] {
@@ -1510,43 +1680,89 @@ export async function rejectDepositTransaction(adminUser: User, transactionId: s
     throw new Error('UNAUTHORIZED: Admin privileges required.');
   }
 
-  const txs = getTransactionsLocal();
-  const txIdx = txs.findIndex((t) => t.id === transactionId);
-
-  if (txIdx === -1) {
-    throw new Error('Transaction not found.');
+  if (completedTransactionOperations.has(transactionId)) {
+    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} has already been processed.`);
   }
 
-  const targetTx = { ...txs[txIdx] };
-
-  if (targetTx.status !== 'PENDING') {
-    throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${targetTx.status}.`);
+  if (activeDepositApprovals.has(transactionId)) {
+    throw new Error(`CONCURRENT OPERATION: Deposit ${transactionId} is currently being processed.`);
   }
+  activeDepositApprovals.add(transactionId);
 
-  targetTx.status = 'REJECTED';
-  targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Deposit ${targetTx.id} cancelled.`;
+  try {
+    const txs = getTransactionsLocal();
+    const txIdx = txs.findIndex((t) => t.id === transactionId);
 
-  // MANDATORY: Await Cloud Database write
-  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
+    if (txIdx === -1) {
+      throw new Error('Transaction not found.');
+    }
 
-  txs[txIdx] = targetTx;
-  saveTransactions(txs);
+    const localTx = txs[txIdx];
+    if (localTx.status !== 'PENDING') {
+      completedTransactionOperations.add(transactionId);
+      throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${localTx.status}.`);
+    }
 
-  const logs = getAuditLogs();
-  logs.unshift({
-    id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
-    adminId: adminUser.userId,
-    action: 'DEPOSIT_REJECTED',
-    targetUserId: targetTx.userId,
-    targetUsername: targetTx.userId,
-    transactionId: targetTx.id,
-    reason: reason || 'Cancelled',
-    timestamp: new Date().toISOString()
-  });
-  saveAuditLogs(logs);
+    let updatedTx: Transaction = {
+      ...localTx,
+      status: 'REJECTED',
+      processedAt: new Date().toISOString(),
+      note: reason ? `Deposit ${transactionId} cancelled: ${reason}` : `Deposit ${transactionId} cancelled.`
+    };
 
-  return targetTx;
+    // Atomic Cloud Execution: Ensure deposit is still PENDING in cloud ledger before marking REJECTED
+    try {
+      await runTransaction(db, async (firestoreTx) => {
+        const txRef = doc(db, 'transactions', transactionId);
+        const cloudTxDoc = await firestoreTx.get(txRef);
+        if (cloudTxDoc.exists()) {
+          const cloudTxData = cloudTxDoc.data() as Transaction;
+          if (cloudTxData.status !== 'PENDING') {
+            throw new Error(`TRANSACTION TERMINAL: Transaction ${transactionId} is already ${cloudTxData.status}.`);
+          }
+          updatedTx = {
+            ...cloudTxData,
+            status: 'REJECTED',
+            processedAt: new Date().toISOString(),
+            note: reason ? `Deposit ${transactionId} cancelled: ${reason}` : `Deposit ${transactionId} cancelled.`
+          };
+          firestoreTx.set(txRef, cleanFirestoreData(updatedTx));
+        } else {
+          firestoreTx.set(txRef, cleanFirestoreData(updatedTx));
+        }
+      });
+    } catch (atomicErr: any) {
+      if (atomicErr.message && atomicErr.message.includes('TRANSACTION TERMINAL')) {
+        completedTransactionOperations.add(transactionId);
+        throw atomicErr;
+      }
+      await setDoc(doc(db, 'transactions', updatedTx.id), cleanFirestoreData(updatedTx));
+    }
+
+    txs[txIdx] = updatedTx;
+    saveTransactions(txs);
+
+    const logs = getAuditLogs();
+    logs.unshift({
+      id: `AUDIT-${Math.floor(10000 + Math.random() * 90000)}`,
+      adminId: adminUser.userId,
+      action: 'DEPOSIT_REJECTED',
+      targetUserId: updatedTx.userId,
+      targetUsername: updatedTx.userId,
+      transactionId: updatedTx.id,
+      reason: reason || 'Cancelled',
+      timestamp: new Date().toISOString()
+    });
+    saveAuditLogs(logs);
+
+    completedTransactionOperations.add(transactionId);
+    emitDataUpdateEvents('txs');
+    emitDataUpdateEvents('users');
+
+    return updatedTx;
+  } finally {
+    activeDepositApprovals.delete(transactionId);
+  }
 }
 
 export async function cancelDepositTransaction(adminUser: User, transactionId: string): Promise<Transaction> {
@@ -1554,30 +1770,66 @@ export async function cancelDepositTransaction(adminUser: User, transactionId: s
 }
 
 export async function cancelOwnPendingDeposit(user: User, transactionId: string): Promise<Transaction> {
-  const txs = getTransactionsLocal();
-  const txIdx = txs.findIndex((t) => t.id === transactionId && t.userId === user.userId);
-
-  if (txIdx === -1) {
-    throw new Error('Transaction request not found.');
+  if (activeDepositApprovals.has(transactionId)) {
+    throw new Error('CONCURRENT OPERATION: This deposit request is currently being processed.');
   }
+  activeDepositApprovals.add(transactionId);
 
-  const targetTx = { ...txs[txIdx] };
+  try {
+    const txs = getTransactionsLocal();
+    const txIdx = txs.findIndex((t) => t.id === transactionId && t.userId === user.userId);
 
-  if (targetTx.status !== 'PENDING') {
-    throw new Error('This deposit request is no longer pending and cannot be cancelled.');
+    if (txIdx === -1) {
+      throw new Error('Transaction request not found.');
+    }
+
+    const localTx = txs[txIdx];
+    if (localTx.status !== 'PENDING') {
+      throw new Error('This deposit request is no longer pending and cannot be cancelled.');
+    }
+
+    let updatedTx: Transaction = {
+      ...localTx,
+      status: 'CANCELLED',
+      processedAt: new Date().toISOString(),
+      note: `Deposit request #${transactionId} cancelled by user.`
+    };
+
+    try {
+      await runTransaction(db, async (firestoreTx) => {
+        const txRef = doc(db, 'transactions', transactionId);
+        const cloudTxDoc = await firestoreTx.get(txRef);
+        if (cloudTxDoc.exists()) {
+          const cloudTxData = cloudTxDoc.data() as Transaction;
+          if (cloudTxData.status !== 'PENDING') {
+            throw new Error('This deposit request is no longer pending and cannot be cancelled.');
+          }
+          updatedTx = {
+            ...cloudTxData,
+            status: 'CANCELLED',
+            processedAt: new Date().toISOString(),
+            note: `Deposit request #${transactionId} cancelled by user.`
+          };
+          firestoreTx.set(txRef, cleanFirestoreData(updatedTx));
+        } else {
+          firestoreTx.set(txRef, cleanFirestoreData(updatedTx));
+        }
+      });
+    } catch (err: any) {
+      if (err.message && err.message.includes('longer pending')) {
+        throw err;
+      }
+      await setDoc(doc(db, 'transactions', updatedTx.id), cleanFirestoreData(updatedTx));
+    }
+
+    txs[txIdx] = updatedTx;
+    saveTransactions(txs);
+    emitDataUpdateEvents('txs');
+
+    return updatedTx;
+  } finally {
+    activeDepositApprovals.delete(transactionId);
   }
-
-  targetTx.status = 'CANCELLED';
-  targetTx.processedAt = new Date().toISOString();
-  targetTx.note = `Deposit request #${transactionId} cancelled by user.`;
-
-  // MANDATORY: Await Cloud Database write
-  await setDoc(doc(db, 'transactions', targetTx.id), cleanFirestoreData(targetTx));
-
-  txs[txIdx] = targetTx;
-  saveTransactions(txs);
-
-  return targetTx;
 }
 
 export function calculateWithdrawalFee(amount: number): { fee: number; netAmount: number } {
@@ -1749,6 +2001,8 @@ export async function submitBonusWithdrawalRequest(
   txs.unshift(newTx);
   saveTransactions(txs);
 
+  users[uIdx] = targetUser;
+  saveUsers(users);
   saveCurrentSession(targetUser);
   return newTx;
 }
