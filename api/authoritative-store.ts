@@ -250,10 +250,13 @@ class AuthoritativeStore {
     }
 
     // Prevent self-referral against matched user record
+    const fUsername = (foundUser?.username && typeof foundUser.username === 'string' ? foundUser.username.toLowerCase() : '');
+    const fEmail = (foundUser?.email && typeof foundUser.email === 'string' ? foundUser.email.toLowerCase() : '');
+
     if (
-      (currentUserId && foundUser.userId === currentUserId) ||
-      (cleanUsername && foundUser.username.toLowerCase() === cleanUsername) ||
-      (cleanEmail && foundUser.email.toLowerCase() === cleanEmail)
+      (currentUserId && foundUser?.userId === currentUserId) ||
+      (cleanUsername && fUsername && fUsername === cleanUsername) ||
+      (cleanEmail && fEmail && fEmail === cleanEmail)
     ) {
       return {
         valid: false,

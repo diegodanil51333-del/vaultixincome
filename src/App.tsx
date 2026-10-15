@@ -32,9 +32,21 @@ export function App() {
     const recoveredSession = getCurrentSession();
     if (recoveredSession) {
       const allUsers = getUsers();
-      const found = allUsers.find((u) => u.userId === recoveredSession.userId || u.email.toLowerCase() === recoveredSession.email.toLowerCase());
+      const recUserId = recoveredSession?.userId;
+      const recEmail = recoveredSession?.email && typeof recoveredSession.email === 'string' ? recoveredSession.email.toLowerCase() : '';
+      const recUsername = recoveredSession?.username && typeof recoveredSession.username === 'string' ? recoveredSession.username.toLowerCase() : '';
+
+      const found = allUsers.find(
+        (u) =>
+          Boolean(u?.userId && recUserId && u.userId === recUserId) ||
+          Boolean(u?.email && recEmail && typeof u.email === 'string' && u.email.toLowerCase() === recEmail) ||
+          Boolean(u?.username && recUsername && typeof u.username === 'string' && u.username.toLowerCase() === recUsername)
+      );
       const freshUser: User = found ? { ...found, ...recoveredSession } : recoveredSession;
-      if (freshUser.email?.toLowerCase() === 'vaultixincometeam@outlook.com' || recoveredSession.role === 'ADMIN') {
+      if (
+        (freshUser?.email && typeof freshUser.email === 'string' && freshUser.email.toLowerCase() === 'vaultixincometeam@outlook.com') ||
+        recoveredSession?.role === 'ADMIN'
+      ) {
         freshUser.role = 'ADMIN';
       }
       setCurrentUser(freshUser);
@@ -56,7 +68,16 @@ export function App() {
       const sess = getCurrentSession();
       if (sess) {
         const all = getUsers();
-        const found = all.find((u) => u.userId === sess.userId || u.email?.toLowerCase() === sess.email?.toLowerCase());
+        const sUserId = sess?.userId;
+        const sEmail = sess?.email && typeof sess.email === 'string' ? sess.email.toLowerCase() : '';
+        const sUsername = sess?.username && typeof sess.username === 'string' ? sess.username.toLowerCase() : '';
+
+        const found = all.find(
+          (u) =>
+            Boolean(u?.userId && sUserId && u.userId === sUserId) ||
+            Boolean(u?.email && sEmail && typeof u.email === 'string' && u.email.toLowerCase() === sEmail) ||
+            Boolean(u?.username && sUsername && typeof u.username === 'string' && u.username.toLowerCase() === sUsername)
+        );
         if (found) {
           setCurrentUser((prev) => (prev ? { ...prev, ...found } : found));
         }
@@ -93,10 +114,23 @@ export function App() {
   };
 
   const handleLoginSuccess = (user: User) => {
+    if (!user) return;
     const allUsers = getUsers();
-    const found = allUsers.find((u) => u.userId === user.userId || u.email.toLowerCase() === user.email.toLowerCase());
+    const uUserId = user?.userId;
+    const uEmail = user?.email && typeof user.email === 'string' ? user.email.toLowerCase() : '';
+    const uUsername = user?.username && typeof user.username === 'string' ? user.username.toLowerCase() : '';
+
+    const found = allUsers.find(
+      (u) =>
+        Boolean(u?.userId && uUserId && u.userId === uUserId) ||
+        Boolean(u?.email && uEmail && typeof u.email === 'string' && u.email.toLowerCase() === uEmail) ||
+        Boolean(u?.username && uUsername && typeof u.username === 'string' && u.username.toLowerCase() === uUsername)
+    );
     const freshUser: User = found ? { ...found, ...user } : { ...user };
-    if (freshUser.email?.toLowerCase() === 'vaultixincometeam@outlook.com' || user.role === 'ADMIN') {
+    if (
+      (freshUser?.email && typeof freshUser.email === 'string' && freshUser.email.toLowerCase() === 'vaultixincometeam@outlook.com') ||
+      user?.role === 'ADMIN'
+    ) {
       freshUser.role = 'ADMIN';
     }
     setCurrentUser(freshUser);

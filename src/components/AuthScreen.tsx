@@ -99,23 +99,49 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       } else if (!cleanId.includes('@')) {
         const localUsers = getUsers();
         const found = localUsers.find(
-          (u) => u.username.toLowerCase() === cleanId.toLowerCase()
+          (u) =>
+            u?.username?.toLowerCase() === cleanId.toLowerCase() ||
+            u?.email?.toLowerCase() === cleanId.toLowerCase()
         );
-        if (found && found.email) {
+        if (found?.email) {
           targetEmail = found.email.toLowerCase();
         } else {
+          // Check backend lookup for user by username
           try {
-            const q = query(collection(db, 'users'), where('username', '==', cleanId.toLowerCase()));
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-              const uData = snap.docs[0].data() as User;
-              if (uData && uData.email) {
-                targetEmail = uData.email.toLowerCase();
+            const res = await fetch('/api/lookup-user', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ identifier: cleanId })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.email) {
+                targetEmail = data.email.toLowerCase();
               }
             }
           } catch {
-            // Ignore offline/permission lookup errors
+            // Ignore offline/lookup errors
           }
+
+          if (!targetEmail.includes('@')) {
+            try {
+              const q = query(collection(db, 'users'), where('username', '==', cleanId));
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                const uData = snap.docs[0].data() as User;
+                if (uData?.email) {
+                  targetEmail = uData.email.toLowerCase();
+                }
+              }
+            } catch {
+              // Ignore offline/permission lookup errors
+            }
+          }
+        }
+
+        if (!targetEmail.includes('@')) {
+          setError(`No account found with username "${cleanId}". Please check your username or enter your email address.`);
+          return;
         }
       }
 
@@ -143,7 +169,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
 
       const uid = authUser.uid;
-      const userEmail = (authUser.email || targetEmail).toLowerCase();
+      const userEmail = (authUser.email || targetEmail || '').toLowerCase();
       const idTokenResult = await authUser.getIdTokenResult();
       const isUserAdmin =
         userEmail === 'vaultixincometeam@outlook.com' ||
@@ -162,6 +188,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         console.warn('Could not read user profile from Firestore:', fsErr);
       }
 
+      // Ensure critical fields are populated safely on retrieved profile
+      if (loggedInUser) {
+        if (!loggedInUser.email && userEmail) {
+          loggedInUser.email = userEmail;
+        }
+        if (!loggedInUser.username && userEmail) {
+          loggedInUser.username = userEmail.split('@')[0];
+        }
+      }
+
       // 4. Fallback profile initialization if not yet present in Firestore
       if (!loggedInUser) {
         if (isUserAdmin) {
@@ -170,7 +206,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
             accountId: 'VX-100001',
             username: 'vaultix_admin',
             fullName: 'Vaultix Administrator',
-            email: userEmail,
+            email: userEmail || 'vaultixincometeam@outlook.com',
             role: 'ADMIN',
             accountStatus: 'ACTIVE',
             balance: 0.0,
@@ -190,16 +226,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         } else {
           const localUsers = getUsers();
           const found = localUsers.find(
-            (u) => u.userId === uid || u.email.toLowerCase() === userEmail.toLowerCase()
+            (u) =>
+              (u?.userId && u.userId === uid) ||
+              (u?.email && userEmail && u.email.toLowerCase() === userEmail) ||
+              (u?.username && cleanId && u.username.toLowerCase() === cleanId.toLowerCase())
           );
           if (found) {
-            loggedInUser = { ...found, userId: uid };
+            loggedInUser = { ...found, userId: uid, email: found.email || userEmail };
           } else {
+            const fallbackUsername = userEmail ? userEmail.split('@')[0] : cleanId;
             loggedInUser = {
               userId: uid,
               accountId: `VX-${Math.floor(100000 + Math.random() * 900000)}`,
-              username: userEmail.split('@')[0],
-              fullName: userEmail.split('@')[0],
+              username: fallbackUsername,
+              fullName: fallbackUsername,
               email: userEmail,
               role: 'USER',
               accountStatus: 'ACTIVE',
@@ -227,7 +267,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         loggedInUser.role = 'ADMIN';
       }
 
-      if (loggedInUser.accountStatus === 'SUSPENDED') {
+      if (loggedInUser?.accountStatus === 'SUSPENDED') {
         setError('Account suspended. Please contact Vaultix Income support.');
         return;
       }
@@ -236,7 +276,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       onLoginSuccess(loggedInUser);
     } catch (err: any) {
       console.error('Login process error:', err);
-      setError(`Login failed: ${err.message || err}`);
+      let errMsg = err?.message || 'Authentication could not be completed. Please check your credentials and try again.';
+      if (
+        errMsg.includes('undefined is not an object') ||
+        errMsg.includes('Cannot read property') ||
+        errMsg.includes('null is not an object')
+      ) {
+        errMsg = 'Invalid login credentials or account record. Please check your username or email and try again.';
+      }
+      setError(errMsg);
     }
   };
 

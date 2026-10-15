@@ -1194,10 +1194,19 @@ export function getCurrentSession(): User | null {
 
   try {
     const sessionUser: User = JSON.parse(sessionRaw);
-    if (!sessionUser || (!sessionUser.userId && !sessionUser.email)) return null;
+    if (!sessionUser || (!sessionUser.userId && !sessionUser.email && !sessionUser.username)) return null;
 
     const users = getUsersLocal();
-    const freshUser = users.find((u) => u.userId === sessionUser.userId || u.email.toLowerCase() === sessionUser.email.toLowerCase());
+    const sUserId = sessionUser.userId;
+    const sEmail = sessionUser.email?.toLowerCase();
+    const sUsername = sessionUser.username?.toLowerCase();
+
+    const freshUser = users.find(
+      (u) =>
+        (u?.userId && sUserId && u.userId === sUserId) ||
+        (u?.email && sEmail && u.email.toLowerCase() === sEmail) ||
+        (u?.username && sUsername && u.username.toLowerCase() === sUsername)
+    );
     return freshUser || sessionUser;
   } catch {
     return null;
@@ -1206,7 +1215,10 @@ export function getCurrentSession(): User | null {
 
 export function saveCurrentSession(user: User | null) {
   if (user) {
-    if (user.email.toLowerCase() === 'diegodaniel4401@gmail.com' || user.username.toLowerCase() === 'diegodaniel4401') {
+    if (
+      user.email?.toLowerCase() === 'diegodaniel4401@gmail.com' ||
+      user.username?.toLowerCase() === 'diegodaniel4401'
+    ) {
       user.role = 'USER';
     }
 
