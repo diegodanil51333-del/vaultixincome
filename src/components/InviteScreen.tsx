@@ -105,13 +105,15 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
       return;
     }
 
-    if (targetUsername.toLowerCase() === user.username.toLowerCase()) {
+    if (user?.username && targetUsername.toLowerCase() === user.username.toLowerCase()) {
       setError('You cannot invite yourself.');
       return;
     }
 
     const allUsers = getUsers();
-    const recipient = allUsers.find((u) => u.username.toLowerCase() === targetUsername.toLowerCase());
+    const recipient = allUsers.find(
+      (u) => Boolean(u?.username && typeof u.username === 'string' && u.username.toLowerCase() === targetUsername.toLowerCase())
+    );
 
     if (!recipient) {
       setError(`User "@${targetUsername}" was not found on Vaultix Income.`);
@@ -121,8 +123,8 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
     const allInvs = getInvitations();
     const existing = allInvs.find(
       (inv) =>
-        inv.inviterUsername.toLowerCase() === user.username.toLowerCase() &&
-        inv.inviteeUsername.toLowerCase() === targetUsername.toLowerCase()
+        Boolean(inv?.inviterUsername && user?.username && inv.inviterUsername.toLowerCase() === user.username.toLowerCase()) &&
+        Boolean(inv?.inviteeUsername && inv.inviteeUsername.toLowerCase() === targetUsername.toLowerCase())
     );
 
     if (existing) {

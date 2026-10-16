@@ -155,6 +155,25 @@
       "referredBy": "USR-009865",
       "referredByUsername": "crypto_whale",
       "referredByDisplayName": "Robert Sterling"
+    },
+    {
+      "userId": "test-user-1792142043362",
+      "accountId": "VX-998877",
+      "username": "crypto_trader_alex",
+      "fullName": "Alex Trader",
+      "email": "alex.trader@example.com",
+      "role": "USER",
+      "accountStatus": "ACTIVE",
+      "balance": 100,
+      "totalDeposits": 100,
+      "totalInvestments": 0,
+      "totalProfitLoss": 0,
+      "referralEarnings": 0,
+      "bonusBalance": 2,
+      "referralCode": "VXREF-ALEX",
+      "hasReceivedSignupBonus": true,
+      "hasReceivedFirstDepositBonus": false,
+      "createdAt": "2026-10-16T09:14:03.362Z"
     }
   ],
   "investments": [

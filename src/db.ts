@@ -708,7 +708,8 @@ export function initFirestoreListeners() {
                 currentList[idx] = reconciledUser;
 
                 const currSess = getCurrentSession();
-                if (currSess && (currSess.userId === myData.userId || currSess.email?.toLowerCase() === myData.email?.toLowerCase())) {
+                const hasMatchingEmail = Boolean(currSess?.email && myData?.email && typeof currSess.email === 'string' && typeof myData.email === 'string' && currSess.email.toLowerCase() === myData.email.toLowerCase());
+                if (currSess && (currSess.userId === myData.userId || hasMatchingEmail)) {
                   saveCurrentSession({ ...currSess, ...reconciledUser });
                 }
               } else {
@@ -930,10 +931,12 @@ export function processRegistrationBonuses(
   const currentUsers = getUsersLocal();
 
   // Self-referral prevention guard
-  const isSelf = referrerUser && (
-    referrerUser.userId === newUser.userId ||
-    referrerUser.username?.toLowerCase() === newUser.username?.toLowerCase() ||
-    referrerUser.email?.toLowerCase() === newUser.email?.toLowerCase()
+  const isSelf = Boolean(
+    referrerUser && (
+      (referrerUser.userId && newUser.userId && referrerUser.userId === newUser.userId) ||
+      (referrerUser?.username && newUser?.username && typeof referrerUser.username === 'string' && typeof newUser.username === 'string' && referrerUser.username.toLowerCase() === newUser.username.toLowerCase()) ||
+      (referrerUser?.email && newUser?.email && typeof referrerUser.email === 'string' && typeof newUser.email === 'string' && referrerUser.email.toLowerCase() === newUser.email.toLowerCase())
+    )
   );
 
   if (referrerUser && !isSelf) {
@@ -1197,15 +1200,15 @@ export function getCurrentSession(): User | null {
     if (!sessionUser || (!sessionUser.userId && !sessionUser.email && !sessionUser.username)) return null;
 
     const users = getUsersLocal();
-    const sUserId = sessionUser.userId;
-    const sEmail = sessionUser.email?.toLowerCase();
-    const sUsername = sessionUser.username?.toLowerCase();
+    const sUserId = sessionUser?.userId;
+    const sEmail = sessionUser?.email && typeof sessionUser.email === 'string' ? sessionUser.email.toLowerCase() : '';
+    const sUsername = sessionUser?.username && typeof sessionUser.username === 'string' ? sessionUser.username.toLowerCase() : '';
 
     const freshUser = users.find(
       (u) =>
-        (u?.userId && sUserId && u.userId === sUserId) ||
-        (u?.email && sEmail && u.email.toLowerCase() === sEmail) ||
-        (u?.username && sUsername && u.username.toLowerCase() === sUsername)
+        Boolean(u?.userId && sUserId && u.userId === sUserId) ||
+        Boolean(u?.email && sEmail && typeof u.email === 'string' && u.email.toLowerCase() === sEmail) ||
+        Boolean(u?.username && sUsername && typeof u.username === 'string' && u.username.toLowerCase() === sUsername)
     );
     return freshUser || sessionUser;
   } catch {

@@ -100,22 +100,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         const localUsers = getUsers();
         const found = localUsers.find(
           (u) =>
-            u?.username?.toLowerCase() === cleanId.toLowerCase() ||
-            u?.email?.toLowerCase() === cleanId.toLowerCase()
+            Boolean(u?.username && typeof u.username === 'string' && u.username.toLowerCase() === cleanId.toLowerCase()) ||
+            Boolean(u?.email && typeof u.email === 'string' && u.email.toLowerCase() === cleanId.toLowerCase())
         );
-        if (found?.email) {
+        if (found?.email && typeof found.email === 'string') {
           targetEmail = found.email.toLowerCase();
         } else {
-          // Check backend lookup for user by username
+          // Check backend lookup for user by username or identifier
           try {
             const res = await fetch('/api/lookup-user', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ identifier: cleanId })
+              body: JSON.stringify({ identifier: cleanId, username: cleanId })
             });
             if (res.ok) {
               const data = await res.json();
-              if (data?.email) {
+              if (data?.email && typeof data.email === 'string') {
                 targetEmail = data.email.toLowerCase();
               }
             }
@@ -129,8 +129,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
               const snap = await getDocs(q);
               if (!snap.empty) {
                 const uData = snap.docs[0].data() as User;
-                if (uData?.email) {
+                if (uData?.email && typeof uData.email === 'string') {
                   targetEmail = uData.email.toLowerCase();
+                }
+              } else if (cleanId !== cleanId.toLowerCase()) {
+                const qLower = query(collection(db, 'users'), where('username', '==', cleanId.toLowerCase()));
+                const snapLower = await getDocs(qLower);
+                if (!snapLower.empty) {
+                  const uData = snapLower.docs[0].data() as User;
+                  if (uData?.email && typeof uData.email === 'string') {
+                    targetEmail = uData.email.toLowerCase();
+                  }
                 }
               }
             } catch {
@@ -139,7 +148,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           }
         }
 
-        if (!targetEmail.includes('@')) {
+        if (!targetEmail || !targetEmail.includes('@')) {
           setError(`No account found with username "${cleanId}". Please check your username or enter your email address.`);
           return;
         }
@@ -169,12 +178,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       }
 
       const uid = authUser.uid;
-      const userEmail = (authUser.email || targetEmail || '').toLowerCase();
-      const idTokenResult = await authUser.getIdTokenResult();
+      const userEmail = (authUser?.email || targetEmail || '').toLowerCase();
+      let idTokenResult: any = null;
+      try {
+        idTokenResult = await authUser.getIdTokenResult();
+      } catch {
+        // Fallback
+      }
       const isUserAdmin =
         userEmail === 'vaultixincometeam@outlook.com' ||
-        idTokenResult.claims.role === 'ADMIN' ||
-        idTokenResult.claims.admin === true;
+        idTokenResult?.claims?.role === 'ADMIN' ||
+        idTokenResult?.claims?.admin === true;
 
       let loggedInUser: User | null = null;
 
@@ -227,9 +241,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
           const localUsers = getUsers();
           const found = localUsers.find(
             (u) =>
-              (u?.userId && u.userId === uid) ||
-              (u?.email && userEmail && u.email.toLowerCase() === userEmail) ||
-              (u?.username && cleanId && u.username.toLowerCase() === cleanId.toLowerCase())
+              Boolean(u?.userId && u.userId === uid) ||
+              Boolean(u?.email && userEmail && typeof u.email === 'string' && u.email.toLowerCase() === userEmail) ||
+              Boolean(u?.username && cleanId && typeof u.username === 'string' && u.username.toLowerCase() === cleanId.toLowerCase())
           );
           if (found) {
             loggedInUser = { ...found, userId: uid, email: found.email || userEmail };
@@ -278,11 +292,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       console.error('Login process error:', err);
       let errMsg = err?.message || 'Authentication could not be completed. Please check your credentials and try again.';
       if (
-        errMsg.includes('undefined is not an object') ||
-        errMsg.includes('Cannot read property') ||
-        errMsg.includes('null is not an object')
+        typeof errMsg === 'string' &&
+        (errMsg.includes('undefined is not an object') ||
+          errMsg.includes('Cannot read property') ||
+          errMsg.includes('Cannot read properties') ||
+          errMsg.includes('null is not an object') ||
+          errMsg.includes('is not a function'))
       ) {
-        errMsg = 'Invalid login credentials or account record. Please check your username or email and try again.';
+        errMsg = 'Login failed: Invalid credentials or account record. Please check your username or email and try again.';
       }
       setError(errMsg);
     }
@@ -306,8 +323,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
       targetEmail = 'vaultixincometeam@outlook.com';
     } else if (!cleanId.includes('@')) {
       const localUsers = getUsers();
-      const found = localUsers.find((u) => u.username.toLowerCase() === cleanId.toLowerCase());
-      if (found?.email) {
+      const found = localUsers.find((u) => Boolean(u?.username && typeof u.username === 'string' && u.username.toLowerCase() === cleanId.toLowerCase()));
+      if (found?.email && typeof found.email === 'string') {
         targetEmail = found.email.toLowerCase();
       }
     }
@@ -357,12 +374,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
 
     const users = getUsers();
 
-    if (users.some((u) => u.username.toLowerCase() === username.trim().toLowerCase())) {
+    if (users.some((u) => Boolean(u?.username && typeof u.username === 'string' && u.username.toLowerCase() === username.trim().toLowerCase()))) {
       setError('Username is already taken by another user.');
       return;
     }
 
-    if (users.some((u) => u.email.toLowerCase() === email.trim().toLowerCase())) {
+    if (users.some((u) => Boolean(u?.email && typeof u.email === 'string' && u.email.toLowerCase() === email.trim().toLowerCase()))) {
       setError('Email address is already registered.');
       return;
     }
@@ -412,18 +429,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, initialT
         const localUsers = getUsers();
         referrerUser = localUsers.find(
           (u) =>
-            u.referralCode?.trim().toUpperCase() === codeClean ||
-            u.username?.trim().toUpperCase() === codeClean
+            u?.referralCode?.trim().toUpperCase() === codeClean ||
+            u?.username?.trim().toUpperCase() === codeClean
         );
 
         if (!referrerUser && codeClean === 'VXREF-ADMIN') {
-          referrerUser = localUsers.find((u) => u.role === 'ADMIN');
+          referrerUser = localUsers.find((u) => u?.role === 'ADMIN');
         }
 
         if (referrerUser) {
+          const rUsername = referrerUser?.username && typeof referrerUser.username === 'string' ? referrerUser.username.toLowerCase() : '';
+          const rEmail = referrerUser?.email && typeof referrerUser.email === 'string' ? referrerUser.email.toLowerCase() : '';
+
           if (
-            referrerUser.username.toLowerCase() === username.trim().toLowerCase() ||
-            referrerUser.email.toLowerCase() === email.trim().toLowerCase()
+            (rUsername && rUsername === username.trim().toLowerCase()) ||
+            (rEmail && rEmail === email.trim().toLowerCase())
           ) {
             setError('You cannot refer yourself. Please enter a valid referral code or leave the field blank.');
             return;

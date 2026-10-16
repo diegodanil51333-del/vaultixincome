@@ -161,11 +161,11 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
-      u.username.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.accountId.toLowerCase().includes(q) ||
-      u.userId.toLowerCase().includes(q) ||
-      u.fullName.toLowerCase().includes(q)
+      Boolean(u?.username && typeof u.username === 'string' && u.username.toLowerCase().includes(q)) ||
+      Boolean(u?.email && typeof u.email === 'string' && u.email.toLowerCase().includes(q)) ||
+      Boolean(u?.accountId && typeof u.accountId === 'string' && u.accountId.toLowerCase().includes(q)) ||
+      Boolean(u?.userId && typeof u.userId === 'string' && u.userId.toLowerCase().includes(q)) ||
+      Boolean(u?.fullName && typeof u.fullName === 'string' && u.fullName.toLowerCase().includes(q))
     );
   });
 
@@ -979,12 +979,16 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ currentAdmin }) => {
                 .filter((tx) => {
                   const q = searchQuery.toLowerCase().trim();
                   if (!q) return true;
-                  const u = users.find((x) => x.userId === tx.userId);
+                  const u = users.find((x) => x?.userId === tx?.userId);
                   return (
-                    tx.id.toLowerCase().includes(q) ||
-                    tx.type.toLowerCase().includes(q) ||
-                    tx.note.toLowerCase().includes(q) ||
-                    (u && (u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.userId.toLowerCase().includes(q)))
+                    Boolean(tx?.id && typeof tx.id === 'string' && tx.id.toLowerCase().includes(q)) ||
+                    Boolean(tx?.type && typeof tx.type === 'string' && tx.type.toLowerCase().includes(q)) ||
+                    Boolean(tx?.note && typeof tx.note === 'string' && tx.note.toLowerCase().includes(q)) ||
+                    (u && (
+                      Boolean(u?.username && typeof u.username === 'string' && u.username.toLowerCase().includes(q)) ||
+                      Boolean(u?.email && typeof u.email === 'string' && u.email.toLowerCase().includes(q)) ||
+                      Boolean(u?.userId && typeof u.userId === 'string' && u.userId.toLowerCase().includes(q))
+                    ))
                   );
                 })
                 .map((tx) => {
