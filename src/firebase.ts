@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, where, updateDoc, limit, runTransaction } from 'firebase/firestore';
-import { getStorage, ref, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, getDownloadURL, uploadBytes, uploadString } from 'firebase/storage';
 
 const metaEnv = (import.meta as unknown as { env: Record<string, string> }).env || {};
 
@@ -59,6 +59,6 @@ export {
   setPersistence, browserLocalPersistence, onAuthStateChanged,
   doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, where, updateDoc, limit,
   runTransaction,
-  ref, getDownloadURL
+  ref, getDownloadURL, uploadBytes, uploadString
 };
 export type { FirebaseUser };

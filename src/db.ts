@@ -58,7 +58,7 @@ export const DEFAULT_WALLETS: CryptoWalletConfig[] = [
 ];
 
 export const DEFAULT_REFERRAL_CONFIG: ReferralConfig = {
-  bonusAmount: 5.0,
+  bonusAmount: 3.0,
   signupBonusAmount: 2.0,
   withdrawalThreshold: 50.0,
   isActive: true
@@ -925,7 +925,7 @@ export function processRegistrationBonuses(
   }
 
   const welcomeBonusAmt = refConfig.signupBonusAmount || 2.0;
-  const referrerRewardAmt = refConfig.bonusAmount || 5.0;
+  const referrerRewardAmt = refConfig.bonusAmount || 3.0;
 
   const allTxs = getTransactionsLocal();
   const currentUsers = getUsersLocal();
@@ -940,7 +940,7 @@ export function processRegistrationBonuses(
   );
 
   if (referrerUser && !isSelf) {
-    // 1. Welcome Bonus for new user
+    // 1. Welcome Bonus for new user ($2.00 into bonusBalance)
     const signupIdempKey = `SIGNUP-BONUS-${newUser.userId}`;
     const alreadyCreditedSignup = newUser.hasReceivedSignupBonus || allTxs.some((t) => t.idempotencyKey === signupIdempKey);
 
@@ -964,7 +964,7 @@ export function processRegistrationBonuses(
       newTxs.push(userBonusTx);
     }
 
-    // 2. Referral Reward for referrer
+    // 2. Referral Reward for referrer ($3.00 into bonusBalance & referralEarnings)
     const refRewardIdempKey = `REF-REWARD-${referrerUser.userId}-${newUser.userId}`;
     const alreadyCreditedRef = allTxs.some((t) => t.idempotencyKey === refRewardIdempKey);
 
@@ -972,6 +972,7 @@ export function processRegistrationBonuses(
     const targetReferrer = rIdx !== -1 ? currentUsers[rIdx] : referrerUser;
 
     if (!alreadyCreditedRef && targetReferrer) {
+      targetReferrer.bonusBalance = Math.round(((targetReferrer.bonusBalance || 0) + referrerRewardAmt) * 100) / 100;
       targetReferrer.referralEarnings = Math.round(((targetReferrer.referralEarnings || 0) + referrerRewardAmt) * 100) / 100;
 
       const refRewardTx: Transaction = {
@@ -993,6 +994,13 @@ export function processRegistrationBonuses(
         currentUsers[rIdx] = targetReferrer;
       } else {
         currentUsers.push(targetReferrer);
+      }
+
+      // Sync referrer bonus update to Cloud Firestore
+      try {
+        setDoc(doc(db, 'users', targetReferrer.userId), cleanFirestoreData(targetReferrer), { merge: true }).catch(() => {});
+      } catch {
+        // Fallback
       }
     }
   }
@@ -1112,6 +1120,7 @@ export function getWallets(): CryptoWalletConfig[] {
 
 export function saveWallets(wallets: CryptoWalletConfig[]) {
   localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
+  emitDataUpdateEvents('wallets');
   try {
     for (const w of wallets) {
       setDoc(doc(db, 'wallets', w.symbol), cleanFirestoreData(w)).catch(() => {});
@@ -1134,6 +1143,7 @@ export function getReferralConfig(): ReferralConfig {
 
 export function saveReferralConfig(cfg: ReferralConfig) {
   localStorage.setItem(REFERRAL_CONFIG_KEY, JSON.stringify(cfg));
+  emitDataUpdateEvents('referral_config');
   try {
     setDoc(doc(db, 'referral_config', 'default'), cleanFirestoreData(cfg)).catch(() => {});
   } catch {}
@@ -1158,6 +1168,37 @@ export function getPlans(): InvestmentPlan[] {
 
 export function savePlans(plans: InvestmentPlan[]) {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
+  emitDataUpdateEvents('plans');
+
+  // Immediately recalculate profit returns based on the updated rate across all active plans
+  try {
+    const invs = getInvestmentsLocal();
+    let invsChanged = false;
+    for (const inv of invs) {
+      if (inv.status === 'ACTIVE') {
+        const matchingPlan = plans.find((p) => p.id === inv.planId || p.name === inv.planName);
+        if (matchingPlan) {
+          const newDailyReturn = Math.round(((inv.amount * matchingPlan.dailyYield) / 100) * 100) / 100;
+          if (inv.dailyReturn !== newDailyReturn) {
+            inv.dailyReturn = newDailyReturn;
+            invsChanged = true;
+            try {
+              setDoc(doc(db, 'investments', inv.id), cleanFirestoreData(inv), { merge: true }).catch(() => {});
+            } catch {
+              // Fallback
+            }
+          }
+        }
+      }
+    }
+    if (invsChanged) {
+      saveInvestments(invs, false);
+      emitDataUpdateEvents('investments');
+    }
+  } catch (err) {
+    console.warn('Could not recalculate active investment rates:', err);
+  }
+
   try {
     for (const p of plans) {
       setDoc(doc(db, 'plans', p.id), cleanFirestoreData(p)).catch(() => {});
@@ -2382,10 +2423,55 @@ export async function subscribeInvestmentPlan(
 
     emitDataUpdateEvents('all');
 
+    // Requirement 5: Dispatch real-time investment notification toast event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('vaultix_investment_toast', {
+          detail: {
+            username: targetUser.username || user.username,
+            amount: amount,
+            asset: plan.asset,
+            planName: plan.name
+          }
+        })
+      );
+    }
+
     return { user: targetUser, investment: newInv };
   } finally {
     activeInvestmentSubscriptions.delete(user.userId);
   }
+}
+
+export async function updateUserProfile(userId: string, updates: Partial<User>): Promise<User | null> {
+  const currentUsers = getUsersLocal();
+  const idx = currentUsers.findIndex((u) => u.userId === userId);
+  if (idx === -1) return null;
+
+  const updatedUser: User = {
+    ...currentUsers[idx],
+    ...updates,
+    updatedAt: new Date().toISOString()
+  };
+
+  currentUsers[idx] = updatedUser;
+  saveUsers(currentUsers, false);
+
+  const currSess = getCurrentSession();
+  if (currSess && currSess.userId === userId) {
+    saveCurrentSession(updatedUser);
+  }
+
+  // Persist permanently in Cloud Firestore
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    await setDoc(userDocRef, cleanFirestoreData(updatedUser), { merge: true });
+  } catch (err) {
+    console.warn('Could not sync user profile updates to Firestore:', err);
+  }
+
+  emitDataUpdateEvents('users');
+  return updatedUser;
 }
 
 export function withdrawReferralEarnings(user: User, amount: number): User {

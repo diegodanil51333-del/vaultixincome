@@ -52,7 +52,9 @@ export interface AuthoritativeTransaction {
   note?: string;
 }
 
-const STORE_FILE = path.resolve(process.cwd(), '.authoritative_store.json');
+const STORE_FILE = process.env.VERCEL || process.env.AWS_REGION
+  ? path.resolve('/tmp', '.authoritative_store.json')
+  : path.resolve(process.cwd(), '.authoritative_store.json');
 
 const INITIAL_USERS: AuthoritativeUser[] = [
   {
@@ -328,20 +330,21 @@ class AuthoritativeStore {
         this.transactions.set(welcomeTx.id, welcomeTx);
         newTxs.push(welcomeTx);
 
-        // 2. Credit referrer $5 USD to Referral Tier Balance (referralEarnings)
-        referrerUser.referralEarnings = (referrerUser.referralEarnings || 0) + 5.0;
+        // 2. Credit referrer $3 USD to bonusBalance & Referral Tier Balance (referralEarnings)
+        referrerUser.bonusBalance = (referrerUser.bonusBalance || 0) + 3.0;
+        referrerUser.referralEarnings = (referrerUser.referralEarnings || 0) + 3.0;
         const refRewardTxId = `TX-${Math.floor(100000 + Math.random() * 900000)}`;
         const refRewardTx: AuthoritativeTransaction = {
           id: refRewardTxId,
           userId: referrerUser.userId,
           type: 'REFERRAL_REWARD',
-          amount: 5.0,
+          amount: 3.0,
           currency: 'USD',
           status: 'COMPLETED',
           timestamp: new Date().toISOString(),
           processedAt: new Date().toISOString(),
           idempotencyKey: `REF-REWARD-${referrerUser.userId}-${newUser.userId}`,
-          note: `Referral Reward for registration of @${newUser.username} ($5.00)`
+          note: `Referral Reward for registration of @${newUser.username} ($3.00)`
         };
         this.transactions.set(refRewardTx.id, refRewardTx);
         newTxs.push(refRewardTx);

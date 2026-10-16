@@ -20,6 +20,11 @@ export interface User {
   referredByDisplayName?: string;
   hasReceivedFirstDepositBonus?: boolean;
   hasReceivedSignupBonus?: boolean;
+  photoURL?: string;
+  avatarUrl?: string;
+  bio?: string;
+  country?: string;
+  updatedAt?: string;
   createdAt: string;
 }
 

@@ -1,8 +1,8 @@
 import React from 'react';
-import { LayoutDashboard, TrendingUp, Bitcoin, Users, Wallet, HelpCircle, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Bitcoin, Users, Wallet, HelpCircle, ShieldAlert, Settings } from 'lucide-react';
 import { User } from '../types';
 
-export type NavTab = 'dashboard' | 'vaults' | 'buy_crypto' | 'invite' | 'wallet' | 'support' | 'admin';
+export type NavTab = 'dashboard' | 'vaults' | 'buy_crypto' | 'invite' | 'wallet' | 'support' | 'settings' | 'admin';
 
 interface SidebarProps {
   currentTab: NavTab;
@@ -17,6 +17,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, user 
     { id: 'buy_crypto', label: 'Buy Crypto', icon: Bitcoin },
     { id: 'invite', label: 'Invite', icon: Users },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
+    { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'support', label: 'Support', icon: HelpCircle },
   ];
 
