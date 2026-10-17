@@ -1,4 +1,4 @@
-import { authoritativeStore } from './authoritative-store';
+import { authoritativeStore } from './authoritative-store.js';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, updateDoc } from 'firebase/firestore';
 
