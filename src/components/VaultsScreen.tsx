@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, InvestmentPlan, UserInvestment } from '../types';
-import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers, getAccruedProfitForInvestment, validateWithdrawal } from '../db';
+import { getPlans, subscribeInvestmentPlan, getInvestments, submitWithdrawalRequest, getUsers, getAccruedProfitForInvestment, getEffectiveDailyReturn, validateWithdrawal } from '../db';
 import { TrendingUp, CheckCircle, AlertCircle, DollarSign, ArrowUpRight, ShieldCheck, X, Crown, Building2, Layers } from 'lucide-react';
 
 interface VaultsScreenProps {
@@ -10,7 +10,31 @@ interface VaultsScreenProps {
 
 export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated }) => {
   const [activeTab, setActiveTab] = useState<'CRYPTO_VAULT' | 'VVIP_PLAN' | 'STOCK_PLAN'>('CRYPTO_VAULT');
-  const allPlans = getPlans().filter((p) => p.isActive);
+  const [allPlans, setAllPlans] = useState<InvestmentPlan[]>(() => getPlans().filter((p) => p.isActive));
+  const [userInvestments, setUserInvestments] = useState<UserInvestment[]>(() => getInvestments().filter((inv) => inv.userId === user.userId));
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setAllPlans(getPlans().filter((p) => p.isActive));
+      setUserInvestments(getInvestments().filter((inv) => inv.userId === user.userId));
+      const freshUser = getUsers().find((u) => u.userId === user.userId);
+      if (freshUser) {
+        onUserUpdated(freshUser);
+      }
+    };
+
+    window.addEventListener('vaultix_plans_updated', handleUpdate);
+    window.addEventListener('vaultix_investments_updated', handleUpdate);
+    window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('vaultix_plans_updated', handleUpdate);
+      window.removeEventListener('vaultix_investments_updated', handleUpdate);
+      window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [user.userId, onUserUpdated]);
 
   // Group plans by category
   const cryptoVaultPlans = allPlans.filter((p) => !p.category || p.category === 'CRYPTO_VAULT');
@@ -20,8 +44,8 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
   const currentCategoryPlans =
     activeTab === 'VVIP_PLAN' ? vvipPlans : activeTab === 'STOCK_PLAN' ? stockPlans : cryptoVaultPlans;
 
-  const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan>(currentCategoryPlans[0] || allPlans[0]);
-  const [depositAmount, setDepositAmount] = useState<number>(selectedPlan.minDeposit);
+  const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan>(() => currentCategoryPlans[0] || allPlans[0]);
+  const [depositAmount, setDepositAmount] = useState<number>(() => (currentCategoryPlans[0] || allPlans[0])?.minDeposit || 100);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -32,8 +56,10 @@ export const VaultsScreen: React.FC<VaultsScreenProps> = ({ user, onUserUpdated 
   const [invWError, setInvWError] = useState<string | null>(null);
   const [invWSuccess, setInvWSuccess] = useState<string | null>(null);
 
-  const userInvestments = getInvestments().filter((inv) => inv.userId === user.userId);
-  const dailyReturn = (depositAmount * selectedPlan.dailyYield) / 100;
+  // Dynamic live rate calculation (reflects instant admin percentage updates)
+  const liveSelectedPlan = allPlans.find((p) => p.id === selectedPlan?.id) || selectedPlan;
+  const effectiveDailyRate = liveSelectedPlan?.dailyRate !== undefined ? liveSelectedPlan.dailyRate : (liveSelectedPlan?.dailyYield || 0);
+  const dailyReturn = (depositAmount * effectiveDailyRate) / 100;
 
   const handleTabChange = (tab: 'CRYPTO_VAULT' | 'VVIP_PLAN' | 'STOCK_PLAN') => {
     setActiveTab(tab);

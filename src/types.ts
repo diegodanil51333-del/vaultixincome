@@ -50,6 +50,7 @@ export interface InvestmentPlan {
   name: string;
   asset: string;
   dailyYield: number;
+  dailyRate?: number;
   minDeposit: number;
   maxDeposit: number;
   lockDays: number;

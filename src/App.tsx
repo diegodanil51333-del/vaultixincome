@@ -12,9 +12,11 @@ import { InviteScreen } from './components/InviteScreen';
 import { WalletScreen } from './components/WalletScreen';
 import { SupportScreen } from './components/SupportScreen';
 import { AdminScreen } from './components/AdminScreen';
+import { SettingsScreen } from './components/SettingsScreen';
+import { InvestmentNotificationToast } from './components/InvestmentNotificationToast';
+import { PublicWithdrawalToast } from './components/PublicWithdrawalToast';
 import { AmbientBackground } from './components/AmbientBackground';
 import { Footer } from './components/Footer';
-import { PublicWithdrawalToast } from './components/PublicWithdrawalToast';
 
 const TAB_STORAGE_KEY = 'vaultix_current_tab_v10';
 
@@ -190,7 +192,8 @@ export function App() {
     <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col font-sans relative">
       <AmbientBackground />
       <PublicWithdrawalToast />
-      <Navbar user={currentUser} onLogout={handleLogout} />
+      <InvestmentNotificationToast />
+      <Navbar user={currentUser} onLogout={handleLogout} onNavigateToTab={setCurrentTab} />
 
       <div className="flex-1 flex flex-col md:flex-row relative z-10">
         <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} user={currentUser} />
@@ -208,6 +211,9 @@ export function App() {
           )}
           {currentTab === 'wallet' && (
             <WalletScreen user={currentUser} onUserUpdated={handleUserUpdated} />
+          )}
+          {currentTab === 'settings' && (
+            <SettingsScreen user={currentUser} onUserUpdated={handleUserUpdated} />
           )}
           {currentTab === 'support' && <SupportScreen user={currentUser} />}
           {currentTab === 'admin' && currentUser.role === 'ADMIN' && (

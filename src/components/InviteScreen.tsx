@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Invitation } from '../types';
 import { getUsers, getInvitations, saveInvitations, saveUsers, saveCurrentSession, getReferralConfig, withdrawReferralEarnings, submitBonusWithdrawalRequest } from '../db';
 import { Users, Copy, Check, Share2, Award, UserPlus, AlertCircle, CheckCircle, ArrowUpRight, DollarSign, ShieldCheck } from 'lucide-react';
@@ -16,6 +16,29 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Real-time synchronization for referred users and bonuses
+  const [allUsers, setAllUsers] = useState<User[]>(() => getUsers());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setAllUsers(getUsers());
+      const freshUser = getUsers().find((u) => u.userId === user.userId);
+      if (freshUser) {
+        onUserUpdated(freshUser);
+      }
+    };
+
+    window.addEventListener('vaultix_users_updated', handleUpdate);
+    window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener('vaultix_users_updated', handleUpdate);
+      window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [user.userId, onUserUpdated]);
+
   // Referral Withdrawal State
   const [withdrawStep, setWithdrawStep] = useState<'IDLE' | 'FEE_PROMPT' | 'SUBMIT_ADDRESS'>('IDLE');
   const [withdrawAmt, setWithdrawAmt] = useState<number>(50.0);
@@ -28,9 +51,27 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
   const minThreshold = refConfig.withdrawalThreshold || 50.0;
   const NETWORK_FEE = 15.0;
 
-  const referralLink = `${window.location.origin}/=${user.referralCode}`;
+  const referralLink = `${window.location.origin}/?ref=${user.referralCode}`;
   const invitations = getInvitations().filter((inv) => inv.inviterUsername === user.username);
-  const referredUsers = getUsers().filter((u) => u.referredByUsername === user.username);
+  
+  // Accurately track every referred user by userId, username, or referralCode
+  const referredUsers = allUsers.filter((u) => {
+    if (!u || u.userId === user.userId) return false;
+    const matchId = Boolean(u.referredBy && u.referredBy === user.userId);
+    const matchUsername = Boolean(
+      u.referredByUsername &&
+      user.username &&
+      typeof u.referredByUsername === 'string' &&
+      typeof user.username === 'string' &&
+      u.referredByUsername.toLowerCase() === user.username.toLowerCase()
+    );
+    const matchRefCode = Boolean(
+      u.referredBy &&
+      user.referralCode &&
+      u.referredBy.toUpperCase() === user.referralCode.toUpperCase()
+    );
+    return matchId || matchUsername || matchRefCode;
+  });
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -171,7 +212,7 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
           <span>Invite Friends & Earn Rewards</span>
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          Share your unique referral code with friends. Earn $5 USD for every eligible friend who registers using your code.
+          Share your unique referral code with friends. Earn $3.00 USD for every friend who registers using your code.
         </p>
       </div>
 
@@ -181,9 +222,9 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
             <Award className="w-6 h-6 text-[#D4AF37]" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-base font-bold text-white">Your Referral Reward: $5 USD</h3>
+            <h3 className="text-base font-bold text-white">Your Referral Reward: $3 USD</h3>
             <p className="text-xs text-slate-300">
-              Your friend also receives a $2 USD welcome bonus when they register using your referral code.
+              Your friend receives an instant $2 USD welcome bonus upon registration, and you instantly receive a $3 USD referral bonus credited to your bonus balance.
             </p>
           </div>
         </div>
@@ -198,12 +239,12 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-[#2A3447]">
           <div>
             <span className="text-xs text-slate-400">Total Referred Users</span>
-            <div className="text-xl font-extrabold text-white mt-0.5">{referredUsers.length + invitations.length}</div>
+            <div className="text-xl font-extrabold text-white mt-0.5">{referredUsers.length}</div>
           </div>
           <div>
             <span className="text-xs text-slate-400">Referral Earnings Balance</span>
             <div className="text-xl font-extrabold text-[#10B981] mt-0.5">
-              ${user.referralEarnings.toFixed(2)}
+              ${(user.bonusBalance || user.referralEarnings || 0).toFixed(2)}
             </div>
           </div>
           <div>
@@ -430,6 +471,69 @@ export const InviteScreen: React.FC<InviteScreenProps> = ({ user, onUserUpdated 
             Send Invite
           </button>
         </form>
+      </div>
+
+      {/* REQUIREMENT 2: REFERRED MEMBERS NETWORK TRACKING LIST */}
+      <div className="bg-[#141923] border border-[#2A3447] rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+            <Users className="w-4 h-4 text-[#D4AF37]" />
+            <span>Referred Network Members ({referredUsers.length})</span>
+          </h3>
+          <span className="text-xs text-slate-400">Total Registered: <strong className="text-white">{referredUsers.length}</strong></span>
+        </div>
+
+        {referredUsers.length === 0 ? (
+          <div className="bg-[#1D2432]/60 border border-[#2A3447] rounded-xl p-8 text-center text-xs text-slate-400 space-y-2">
+            <Users className="w-8 h-8 text-slate-500 mx-auto" />
+            <p className="font-semibold text-slate-300">No referred members registered yet</p>
+            <p className="text-slate-400 max-w-sm mx-auto">Share your referral link or code above. When new members join using your code, they receive $2.00 USD and you earn $3.00 USD instantly!</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-[#1D2432] text-slate-400 uppercase text-[10px] tracking-wider border-b border-[#2A3447]">
+                <tr>
+                  <th className="py-2.5 px-3">Member</th>
+                  <th className="py-2.5 px-3">Account ID</th>
+                  <th className="py-2.5 px-3">Registered On</th>
+                  <th className="py-2.5 px-3">Bonus Credited</th>
+                  <th className="py-2.5 px-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#2A3447]">
+                {referredUsers.map((ru) => (
+                  <tr key={ru.userId} className="hover:bg-[#1D2432]/50 transition-colors">
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-7 h-7 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] font-bold text-xs">
+                          {ru.username ? ru.username.slice(0, 2).toUpperCase() : 'U'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-white">@{ru.username}</div>
+                          {ru.fullName && <div className="text-[10px] text-slate-400">{ru.fullName}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-slate-400">{ru.accountId || 'VX-USER'}</td>
+                    <td className="py-2.5 px-3 text-slate-400">{ru.createdAt ? new Date(ru.createdAt).toLocaleDateString() : 'Recent'}</td>
+                    <td className="py-2.5 px-3 font-bold text-emerald-400">
+                      <span className="flex items-center space-x-1">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0 inline mr-1" />
+                        <span>+$3.00 USD</span>
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                        {ru.accountStatus || 'ACTIVE'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

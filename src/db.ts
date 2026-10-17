@@ -901,9 +901,20 @@ export function getUsers(): User[] {
 }
 
 export function saveUsers(users: User[], syncToCloud = true) {
+  const current = getUsersLocal();
   const map = new Map<string, User>();
+  current.forEach((u) => {
+    if (u?.userId) map.set(u.userId, u);
+  });
   users.forEach((u) => {
-    if (u.userId) map.set(u.userId, u);
+    if (u?.userId) {
+      const existing = map.get(u.userId);
+      if (existing) {
+        map.set(u.userId, { ...existing, ...u });
+      } else {
+        map.set(u.userId, u);
+      }
+    }
   });
   const merged = Array.from(map.values());
   localStorage.setItem(USERS_KEY, JSON.stringify(merged));
@@ -1005,6 +1016,20 @@ export function processRegistrationBonuses(
     }
   }
 
+  // Sync new user bonus update to Cloud Firestore
+  try {
+    setDoc(doc(db, 'users', newUser.userId), cleanFirestoreData(newUser), { merge: true }).catch(() => {});
+  } catch {
+    // Fallback
+  }
+
+  // Sync any generated bonus transactions to Cloud Firestore
+  for (const bTx of newTxs) {
+    try {
+      setDoc(doc(db, 'transactions', bTx.id), cleanFirestoreData(bTx), { merge: true }).catch(() => {});
+    } catch {}
+  }
+
   // Update new user in currentUsers
   const uIdx = currentUsers.findIndex((u) => u.userId === newUser.userId);
   if (uIdx !== -1) {
@@ -1041,9 +1066,27 @@ export function getTransactions(): Transaction[] {
 }
 
 export function saveTransactions(txs: Transaction[], syncToCloud = true) {
-  localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(txs));
+  const current = getTransactionsLocal();
+  const map = new Map<string, Transaction>();
+  current.forEach((t) => {
+    if (t?.id) map.set(t.id, t);
+  });
+  txs.forEach((t) => {
+    if (t?.id) {
+      const existing = map.get(t.id);
+      if (existing) {
+        map.set(t.id, { ...existing, ...t });
+      } else {
+        map.set(t.id, t);
+      }
+    }
+  });
+  const merged = Array.from(map.values()).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+  localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(merged));
   if (syncToCloud) {
-    syncTxsToFirestore(txs);
+    syncTxsToFirestore(merged);
   }
   emitDataUpdateEvents('txs');
 }
@@ -1062,9 +1105,25 @@ export function getInvestments(): UserInvestment[] {
 }
 
 export function saveInvestments(invs: UserInvestment[], syncToCloud = true) {
-  localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(invs));
+  const current = getInvestmentsLocal();
+  const map = new Map<string, UserInvestment>();
+  current.forEach((i) => {
+    if (i?.id) map.set(i.id, i);
+  });
+  invs.forEach((i) => {
+    if (i?.id) {
+      const existing = map.get(i.id);
+      if (existing) {
+        map.set(i.id, { ...existing, ...i });
+      } else {
+        map.set(i.id, i);
+      }
+    }
+  });
+  const merged = Array.from(map.values());
+  localStorage.setItem(INVESTMENTS_KEY, JSON.stringify(merged));
   if (syncToCloud) {
-    syncInvestmentsToFirestore(invs);
+    syncInvestmentsToFirestore(merged);
   }
   emitDataUpdateEvents('investments');
 }
@@ -1610,7 +1669,7 @@ export async function approveDepositTransaction(
         targetTx.cashbackAwarded = false;
       }
 
-      // Referral Signup Bonuses ($2 for new user to bonusBalance, $5 for direct referrer to referralEarnings)
+      // Referral Signup Bonuses ($2 for new user to bonusBalance, $3 for direct referrer to bonusBalance & referralEarnings)
       let referrerUserToSave: User | null = null;
       if ((targetUser.referredBy || targetUser.referredByUsername) && !targetUser.hasReceivedSignupBonus) {
         targetUser.bonusBalance = (targetUser.bonusBalance || 0) + 2.0;
@@ -1637,18 +1696,19 @@ export async function approveDepositTransaction(
           if (referrerDoc.exists()) {
             const referrerData = referrerDoc.data() as User;
             referrerUserToSave = { ...referrerData };
-            referrerUserToSave.referralEarnings = (referrerUserToSave.referralEarnings || 0) + 5.0;
+            referrerUserToSave.bonusBalance = (referrerUserToSave.bonusBalance || 0) + 3.0;
+            referrerUserToSave.referralEarnings = (referrerUserToSave.referralEarnings || 0) + 3.0;
 
             const referrerBonusTx: Transaction = {
               id: `TX-${Math.floor(100000 + Math.random() * 900000)}`,
               userId: referrerUserToSave.userId,
               type: 'REFERRAL_REWARD',
-              amount: 5.0,
+              amount: 3.0,
               currency: 'USD',
               status: 'COMPLETED',
               timestamp: new Date().toISOString(),
               processedAt: new Date().toISOString(),
-              note: `Referral Bonus for verified signup of @${targetUser.username} ($5.00)`
+              note: `Referral Bonus for verified signup of @${targetUser.username} ($3.00)`
             };
             extraTransactions.push(referrerBonusTx);
             firestoreTx.set(referrerRef, cleanFirestoreData(referrerUserToSave), { merge: true });
@@ -1895,16 +1955,24 @@ export function calculateWithdrawalFee(amount: number): { fee: number; netAmount
   return { fee, netAmount };
 }
 
+export function getEffectiveDailyReturn(inv: UserInvestment): number {
+  const currentPlan = getPlansLocal().find((p) => p.id === inv.planId);
+  const effectiveDailyRate = currentPlan?.dailyRate !== undefined ? currentPlan.dailyRate : (currentPlan?.dailyYield !== undefined ? currentPlan.dailyYield : null);
+  return effectiveDailyRate !== null ? (inv.amount * effectiveDailyRate) / 100 : inv.dailyReturn;
+}
+
 export function getAccruedProfitForInvestment(inv: UserInvestment): number {
+  const effectiveDailyReturn = getEffectiveDailyReturn(inv);
+
   if (inv.status === 'COMPLETED' || inv.status === 'WITHDRAWN' || inv.status === 'WITHDRAWAL_PENDING') {
-    return inv.dailyReturn * inv.durationDays;
+    return effectiveDailyReturn * inv.durationDays;
   }
   const nowMs = Date.now();
   const startMs = new Date(inv.startDate).getTime();
   const durationMs = inv.durationDays * 86400000;
   const elapsedMs = Math.min(durationMs, Math.max(0, nowMs - startMs));
   const elapsedDays = elapsedMs / 86400000;
-  return inv.dailyReturn * elapsedDays;
+  return effectiveDailyReturn * elapsedDays;
 }
 
 export async function submitWithdrawalRequest(

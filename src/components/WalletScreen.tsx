@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Transaction } from '../types';
+import { User, Transaction, CryptoWalletConfig } from '../types';
 import { getWallets, submitDeposit, submitWithdrawalRequest, submitBonusWithdrawalRequest, calculateWithdrawalFee, getUsers, saveUsers, getTransactions, saveTransactions, saveCurrentSession, cancelOwnPendingDeposit } from '../db';
 import { cryptoPriceService } from '../services/cryptoPriceService';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Copy, Check, AlertCircle, CheckCircle, Mail, QrCode, Gift, ShieldCheck, RefreshCw } from 'lucide-react';
@@ -13,8 +13,8 @@ interface WalletScreenProps {
 
 export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated }) => {
   const [selectedTxForReceipt, setSelectedTxForReceipt] = useState<Transaction | null>(null);
-  const wallets = getWallets().filter((w) => w.isActive);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>(wallets[0]?.symbol || 'USDT');
+  const [wallets, setWallets] = useState<CryptoWalletConfig[]>(() => getWallets().filter((w) => w.isActive));
+  const [selectedSymbol, setSelectedSymbol] = useState<string>(() => getWallets().filter((w) => w.isActive)[0]?.symbol || 'USDT');
   const [copiedAddress, setCopiedAddress] = useState(false);
 
   // Deposit Submit Form
@@ -67,17 +67,20 @@ export const WalletScreen: React.FC<WalletScreenProps> = ({ user, onUserUpdated 
         onUserUpdated(freshUser);
       }
       setUserTransactions(getTransactions().filter((tx) => tx.userId === user.userId));
+      setWallets(getWallets().filter((w) => w.isActive));
     };
 
     const interval = setInterval(handleUpdate, 1000);
     window.addEventListener('vaultix_users_updated', handleUpdate);
     window.addEventListener('vaultix_txs_updated', handleUpdate);
+    window.addEventListener('vaultix_wallets_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('vaultix_users_updated', handleUpdate);
       window.removeEventListener('vaultix_txs_updated', handleUpdate);
+      window.removeEventListener('vaultix_wallets_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
   }, [user.userId]);
