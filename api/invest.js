@@ -545,7 +545,7 @@ var require_call_credentials = __commonJS({
           if (isCurrentOauth2Client(googleCredentials)) {
             getHeaders = googleCredentials.getRequestHeaders(options2.service_url);
           } else {
-            getHeaders = new Promise((resolve, reject) => {
+            getHeaders = new Promise((resolve2, reject) => {
               googleCredentials.getRequestMetadata(options2.service_url, (err, headers) => {
                 if (err) {
                   reject(err);
@@ -555,7 +555,7 @@ var require_call_credentials = __commonJS({
                   reject(new Error("Headers not set by metadata plugin"));
                   return;
                 }
-                resolve(headers);
+                resolve2(headers);
               });
             });
           }
@@ -608,10 +608,10 @@ var require_call_credentials = __commonJS({
         this.metadataGenerator = metadataGenerator;
       }
       generateMetadata(options2) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve2, reject) => {
           this.metadataGenerator(options2, (err, metadata) => {
             if (metadata !== void 0) {
-              resolve(metadata);
+              resolve2(metadata);
             } else {
               reject(err);
             }
@@ -3444,7 +3444,7 @@ var require_aspromise = __commonJS({
       var params = new Array(arguments.length - 1), offset = 0, index = 2, pending = true;
       while (index < arguments.length)
         params[offset++] = arguments[index++];
-      return new Promise(function executor(resolve, reject) {
+      return new Promise(function executor(resolve2, reject) {
         params[offset] = function callback(err) {
           if (pending) {
             pending = false;
@@ -3454,7 +3454,7 @@ var require_aspromise = __commonJS({
               var params2 = new Array(arguments.length - 1), offset2 = 0;
               while (offset2 < params2.length)
                 params2[offset2++] = arguments[offset2];
-              resolve.apply(null, params2);
+              resolve2.apply(null, params2);
             }
           }
         };
@@ -6013,7 +6013,7 @@ var require_path = __commonJS({
         return prefix + parts.join("/");
       }
     );
-    path2.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+    path2.resolve = function resolve2(originPath, includePath, alreadyNormalized) {
       if (!alreadyNormalized)
         includePath = normalize(includePath);
       if (isAbsolute(includePath))
@@ -6370,7 +6370,7 @@ var require_mapfield = __commonJS({
         keepComments ? this.comment : void 0
       ]);
     };
-    MapField.prototype.resolve = function resolve() {
+    MapField.prototype.resolve = function resolve2() {
       if (this.resolved)
         return this;
       if (types.mapKey[this.keyType] === void 0)
@@ -6447,7 +6447,7 @@ var require_method = __commonJS({
         this.parsedOptions
       ]);
     };
-    Method.prototype.resolve = function resolve() {
+    Method.prototype.resolve = function resolve2() {
       if (this.resolved)
         return this;
       this.resolvedRequestType = this.parent.lookupType(this.requestType);
@@ -8063,7 +8063,7 @@ var require_field = __commonJS({
         keepComments ? this.comment : void 0
       ]);
     };
-    Field2.prototype.resolve = function resolve() {
+    Field2.prototype.resolve = function resolve2() {
       if (this.resolved)
         return this;
       if ((this.typeDefault = types.defaults[this.type]) === void 0) {
@@ -8336,7 +8336,7 @@ var require_object = __commonJS({
       this.parent = null;
       this.resolved = false;
     };
-    ReflectionObject.prototype.resolve = function resolve() {
+    ReflectionObject.prototype.resolve = function resolve2() {
       if (this.resolved)
         return this;
       if (this.root instanceof Root)
@@ -13852,7 +13852,7 @@ var require_http_proxy = __commonJS({
       options2.headers = headers;
       const proxyAddressString = (0, subchannel_address_1.subchannelAddressToString)(address);
       trace("Using proxy " + proxyAddressString + " to connect to " + options2.path);
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve2, reject) => {
         const request = http.request(options2);
         request.once("connect", (res, socket, head) => {
           var _a2;
@@ -13866,7 +13866,7 @@ var require_http_proxy = __commonJS({
               const remoteHost = (_a2 = hostPort2 === null || hostPort2 === void 0 ? void 0 : hostPort2.host) !== null && _a2 !== void 0 ? _a2 : targetPath;
               const cts = tls.connect(Object.assign({ host: remoteHost, servername: remoteHost, socket }, connectionOptions), () => {
                 trace("Successfully established a TLS connection to " + options2.path + " through proxy " + proxyAddressString);
-                resolve({ socket: cts, realTarget: parsedTarget });
+                resolve2({ socket: cts, realTarget: parsedTarget });
               });
               cts.on("error", (error) => {
                 trace("Failed to establish a TLS connection to " + options2.path + " through proxy " + proxyAddressString + " with error " + error.message);
@@ -13874,7 +13874,7 @@ var require_http_proxy = __commonJS({
               });
             } else {
               trace("Successfully established a plaintext connection to " + options2.path + " through proxy " + proxyAddressString);
-              resolve({
+              resolve2({
                 socket,
                 realTarget: parsedTarget
               });
@@ -14714,7 +14714,7 @@ var require_transport = __commonJS({
         if (this.isShutdown) {
           return Promise.reject();
         }
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve2, reject) => {
           var _a, _b, _c;
           let remoteName;
           if (proxyConnectionResult.realTarget) {
@@ -14766,7 +14766,7 @@ var require_transport = __commonJS({
           session.unref();
           session.once("connect", () => {
             session.removeAllListeners();
-            resolve(new Http2Transport(session, address, options2, remoteName));
+            resolve2(new Http2Transport(session, address, options2, remoteName));
             this.session = null;
           });
           session.once("close", () => {
@@ -15097,18 +15097,18 @@ var require_compression_filter = __commonJS({
         this.maxRecvMessageLength = maxRecvMessageLength;
       }
       compressMessage(message) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve2, reject) => {
           zlib.deflate(message, (err, output) => {
             if (err) {
               reject(err);
             } else {
-              resolve(output);
+              resolve2(output);
             }
           });
         });
       }
       decompressMessage(message) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve2, reject) => {
           let totalLength = 0;
           const messageParts = [];
           const decompresser = zlib.createInflate();
@@ -15130,7 +15130,7 @@ var require_compression_filter = __commonJS({
             }
           });
           decompresser.on("end", () => {
-            resolve(Buffer.concat(messageParts));
+            resolve2(Buffer.concat(messageParts));
           });
           decompresser.write(message);
           decompresser.end();
@@ -15143,18 +15143,18 @@ var require_compression_filter = __commonJS({
         this.maxRecvMessageLength = maxRecvMessageLength;
       }
       compressMessage(message) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve2, reject) => {
           zlib.gzip(message, (err, output) => {
             if (err) {
               reject(err);
             } else {
-              resolve(output);
+              resolve2(output);
             }
           });
         });
       }
       decompressMessage(message) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve2, reject) => {
           let totalLength = 0;
           const messageParts = [];
           const decompresser = zlib.createGunzip();
@@ -15176,7 +15176,7 @@ var require_compression_filter = __commonJS({
             }
           });
           decompresser.on("end", () => {
-            resolve(Buffer.concat(messageParts));
+            resolve2(Buffer.concat(messageParts));
           });
           decompresser.write(message);
           decompresser.end();
@@ -17231,7 +17231,7 @@ var require_server_call = __commonJS({
           } else {
             decompresser = zlib.createGunzip();
           }
-          return new Promise((resolve, reject) => {
+          return new Promise((resolve2, reject) => {
             let totalLength = 0;
             const messageParts = [];
             decompresser.on("error", (error) => {
@@ -17252,7 +17252,7 @@ var require_server_call = __commonJS({
               }
             });
             decompresser.on("end", () => {
-              resolve(Buffer.concat(messageParts));
+              resolve2(Buffer.concat(messageParts));
             });
             decompresser.write(messageContents);
             decompresser.end();
@@ -17303,7 +17303,7 @@ var require_server_call = __commonJS({
         return metadata;
       }
       receiveUnaryMessage(encoding) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve2, reject) => {
           const { stream } = this;
           let receivedLength = 0;
           const call = this;
@@ -17347,10 +17347,10 @@ var require_server_call = __commonJS({
             const compressedMessageEncoding = compressed ? encoding : "identity";
             const decompressedMessage = call.getDecompressedMessage(requestBytes, compressedMessageEncoding);
             if (Buffer.isBuffer(decompressedMessage)) {
-              resolve(call.deserializeMessageWithInternalError(decompressedMessage));
+              resolve2(call.deserializeMessageWithInternalError(decompressedMessage));
               return;
             }
-            decompressedMessage.then((decompressed) => resolve(call.deserializeMessageWithInternalError(decompressed)), (err2) => reject(err2.code ? err2 : {
+            decompressedMessage.then((decompressed) => resolve2(call.deserializeMessageWithInternalError(decompressed)), (err2) => reject(err2.code ? err2 : {
               code: constants_1.Status.INTERNAL,
               details: `Received "grpc-encoding" header "${encoding}" but ${encoding} decompression failed`
             }));
@@ -17939,16 +17939,16 @@ var require_server = __commonJS({
               addr = address;
             }
             const http2Server = setupServer();
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve2, reject) => {
               const onError = (err) => {
                 this.trace("Failed to bind " + (0, subchannel_address_1.subchannelAddressToString)(address) + " with error " + err.message);
-                resolve(err);
+                resolve2(err);
               };
               http2Server.once("error", onError);
               http2Server.listen(addr, () => {
                 if (this.shutdown) {
                   http2Server.close();
-                  resolve(new Error("bindAsync failed because server is shutdown"));
+                  resolve2(new Error("bindAsync failed because server is shutdown"));
                   return;
                 }
                 const boundAddress = http2Server.address();
@@ -17991,7 +17991,7 @@ var require_server = __commonJS({
                   channelzRef
                 });
                 this.trace("Successfully bound " + (0, subchannel_address_1.subchannelAddressToString)(boundSubchannelAddress));
-                resolve("port" in boundSubchannelAddress ? boundSubchannelAddress.port : portNum);
+                resolve2("port" in boundSubchannelAddress ? boundSubchannelAddress.port : portNum);
                 http2Server.removeListener("error", onError);
               });
             });
@@ -18017,16 +18017,16 @@ var require_server = __commonJS({
           }
           const address = addressList[0];
           const http2Server = setupServer();
-          return new Promise((resolve, reject) => {
+          return new Promise((resolve2, reject) => {
             const onError = (err) => {
               this.trace("Failed to bind " + (0, subchannel_address_1.subchannelAddressToString)(address) + " with error " + err.message);
-              resolve(bindWildcardPort(addressList.slice(1)));
+              resolve2(bindWildcardPort(addressList.slice(1)));
             };
             http2Server.once("error", onError);
             http2Server.listen(address, () => {
               if (this.shutdown) {
                 http2Server.close();
-                resolve({ port: 0, count: 0 });
+                resolve2({ port: 0, count: 0 });
                 return;
               }
               const boundAddress = http2Server.address();
@@ -18062,7 +18062,7 @@ var require_server = __commonJS({
                 channelzRef
               });
               this.trace("Successfully bound " + (0, subchannel_address_1.subchannelAddressToString)(boundSubchannelAddress));
-              resolve(bindSpecificPort(addressList.slice(1), boundAddress.port, 1));
+              resolve2(bindSpecificPort(addressList.slice(1), boundAddress.port, 1));
               http2Server.removeListener("error", onError);
             });
           });
@@ -19929,9 +19929,9 @@ var require_src3 = __commonJS({
   }
 });
 
-// api/authoritative-store.ts
-import fs from "fs";
-import path from "path";
+// api/authoritative-store.js
+import * as fs from "fs";
+import * as path from "path";
 var STORE_FILE = process.env.VERCEL || process.env.AWS_REGION ? path.resolve("/tmp", ".authoritative_store.json") : path.resolve(process.cwd(), ".authoritative_store.json");
 var INITIAL_USERS = [
   {
@@ -20625,8 +20625,8 @@ var Deferred = class {
     };
     this.resolve = () => {
     };
-    this.promise = new Promise((resolve, reject) => {
-      this.resolve = resolve;
+    this.promise = new Promise((resolve2, reject) => {
+      this.resolve = resolve2;
       this.reject = reject;
     });
   }
@@ -20722,7 +20722,7 @@ function isIndexedDBAvailable() {
   }
 }
 function validateIndexedDBOpenable() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     try {
       let preExist = true;
       const DB_CHECK_NAME = "validate-browser-context-for-indexeddb-analytics-module";
@@ -20732,7 +20732,7 @@ function validateIndexedDBOpenable() {
         if (!preExist) {
           self.indexedDB.deleteDatabase(DB_CHECK_NAME);
         }
-        resolve(true);
+        resolve2(true);
       };
       request.onupgradeneeded = () => {
         preExist = false;
@@ -21272,13 +21272,13 @@ var transactionStoreNamesMap = /* @__PURE__ */ new WeakMap();
 var transformCache = /* @__PURE__ */ new WeakMap();
 var reverseTransformCache = /* @__PURE__ */ new WeakMap();
 function promisifyRequest(request) {
-  const promise = new Promise((resolve, reject) => {
+  const promise = new Promise((resolve2, reject) => {
     const unlisten = () => {
       request.removeEventListener("success", success);
       request.removeEventListener("error", error);
     };
     const success = () => {
-      resolve(wrap(request.result));
+      resolve2(wrap(request.result));
       unlisten();
     };
     const error = () => {
@@ -21300,14 +21300,14 @@ function promisifyRequest(request) {
 function cacheDonePromiseForTransaction(tx) {
   if (transactionDoneMap.has(tx))
     return;
-  const done = new Promise((resolve, reject) => {
+  const done = new Promise((resolve2, reject) => {
     const unlisten = () => {
       tx.removeEventListener("complete", complete);
       tx.removeEventListener("error", error);
       tx.removeEventListener("abort", error);
     };
     const complete = () => {
-      resolve();
+      resolve2();
       unlisten();
     };
     const error = () => {
@@ -33380,8 +33380,8 @@ User.FIRST_PARTY = new User("first-party-uid");
 User.MOCK_USER = new User("mock-user");
 var Deferred2 = class {
   constructor() {
-    this.promise = new Promise((resolve, reject) => {
-      this.resolve = resolve;
+    this.promise = new Promise((resolve2, reject) => {
+      this.resolve = resolve2;
       this.reject = reject;
     });
   }
@@ -33735,12 +33735,12 @@ function generateUniqueDebugId() {
   return "0x" + lastUniqueDebugId.toString(16);
 }
 function nodePromise(action) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     action((error, value) => {
       if (error) {
         reject(error);
       } else {
-        resolve(value);
+        resolve2(value);
       }
     });
   });
@@ -39061,19 +39061,19 @@ var PersistencePromise = class _PersistencePromise {
         return this.wrapFailure(catchFn, this.error);
       }
     } else {
-      return new _PersistencePromise((resolve, reject) => {
+      return new _PersistencePromise((resolve2, reject) => {
         this.nextCallback = (value) => {
-          this.wrapSuccess(nextFn, value).next(resolve, reject);
+          this.wrapSuccess(nextFn, value).next(resolve2, reject);
         };
         this.catchCallback = (error) => {
-          this.wrapFailure(catchFn, error).next(resolve, reject);
+          this.wrapFailure(catchFn, error).next(resolve2, reject);
         };
       });
     }
   }
   toPromise() {
-    return new Promise((resolve, reject) => {
-      this.next(resolve, reject);
+    return new Promise((resolve2, reject) => {
+      this.next(resolve2, reject);
     });
   }
   wrapUserFunction(fn) {
@@ -39103,17 +39103,17 @@ var PersistencePromise = class _PersistencePromise {
     }
   }
   static resolve(result) {
-    return new _PersistencePromise((resolve, reject) => {
-      resolve(result);
+    return new _PersistencePromise((resolve2, reject) => {
+      resolve2(result);
     });
   }
   static reject(error) {
-    return new _PersistencePromise((resolve, reject) => {
+    return new _PersistencePromise((resolve2, reject) => {
       reject(error);
     });
   }
   static waitFor(all) {
-    return new _PersistencePromise((resolve, reject) => {
+    return new _PersistencePromise((resolve2, reject) => {
       let expectedCount = 0;
       let resolvedCount = 0;
       let done = false;
@@ -39122,13 +39122,13 @@ var PersistencePromise = class _PersistencePromise {
         element.next(() => {
           ++resolvedCount;
           if (done && resolvedCount === expectedCount) {
-            resolve();
+            resolve2();
           }
         }, (err) => reject(err));
       });
       done = true;
       if (resolvedCount === expectedCount) {
-        resolve();
+        resolve2();
       }
     });
   }
@@ -39162,7 +39162,7 @@ var PersistencePromise = class _PersistencePromise {
    * Concurrently map all array elements through asynchronous function.
    */
   static mapArray(array2, f) {
-    return new _PersistencePromise((resolve, reject) => {
+    return new _PersistencePromise((resolve2, reject) => {
       const expectedCount = array2.length;
       const results = new Array(expectedCount);
       let resolvedCount = 0;
@@ -39172,7 +39172,7 @@ var PersistencePromise = class _PersistencePromise {
           results[current] = result;
           ++resolvedCount;
           if (resolvedCount === expectedCount) {
-            resolve(results);
+            resolve2(results);
           }
         }, (err) => reject(err));
       }
@@ -39185,14 +39185,14 @@ var PersistencePromise = class _PersistencePromise {
    * The `action` will be called repeatedly while `condition` is true.
    */
   static doWhile(condition, action) {
-    return new _PersistencePromise((resolve, reject) => {
+    return new _PersistencePromise((resolve2, reject) => {
       const process2 = () => {
         if (condition() === true) {
           action().next(() => {
             process2();
           }, reject);
         } else {
-          resolve();
+          resolve2();
         }
       };
       process2();

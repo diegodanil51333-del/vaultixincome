@@ -64,6 +64,26 @@ export function App() {
       } else if (freshUser.role === 'ADMIN') {
         setCurrentTabState('admin');
       }
+    } else {
+      // Auto-detect referral link or direct auth route for unauthenticated visitors
+      try {
+        if (typeof window !== 'undefined') {
+          const fullUrl = window.location.href;
+          const pathname = window.location.pathname.toLowerCase();
+          const isRefLink = fullUrl.includes('=VXREF-') || fullUrl.includes('ref=') || pathname.includes('/register');
+          const isLoginLink = pathname.includes('/login');
+
+          if (isRefLink) {
+            setAuthMode('register');
+            setShowAuthScreen(true);
+          } else if (isLoginLink) {
+            setAuthMode('login');
+            setShowAuthScreen(true);
+          }
+        }
+      } catch {
+        // Fallback
+      }
     }
 
     const handleUpdate = () => {

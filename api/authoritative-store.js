@@ -1,6 +1,6 @@
 // api/authoritative-store.ts
-import fs from "fs";
-import path from "path";
+import * as fs from "fs";
+import * as path from "path";
 var STORE_FILE = process.env.VERCEL || process.env.AWS_REGION ? path.resolve("/tmp", ".authoritative_store.json") : path.resolve(process.cwd(), ".authoritative_store.json");
 var INITIAL_USERS = [
   {

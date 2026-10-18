@@ -1,4 +1,4 @@
-import { authoritativeStore } from './authoritative-store';
+import { authoritativeStore } from './authoritative-store.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST' && req.method !== 'GET') {
