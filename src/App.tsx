@@ -53,9 +53,26 @@ export function App() {
       }
       setCurrentUser(freshUser);
 
-      // Restore saved active tab on page refresh
+      // Restore saved active tab on page refresh or direct URL navigation
       const savedTab = (localStorage.getItem(TAB_STORAGE_KEY) || sessionStorage.getItem(TAB_STORAGE_KEY)) as NavTab | null;
-      if (savedTab) {
+      const pathname = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+      if (pathname.includes('/dashboard')) {
+        setCurrentTabState('dashboard');
+      } else if (pathname.includes('/vaults') || pathname.includes('/plans') || pathname.includes('/invest')) {
+        setCurrentTabState('vaults');
+      } else if (pathname.includes('/wallet')) {
+        setCurrentTabState('wallet');
+      } else if (pathname.includes('/invite') || pathname.includes('/referral')) {
+        setCurrentTabState('invite');
+      } else if (pathname.includes('/buy') || pathname.includes('/crypto')) {
+        setCurrentTabState('buy_crypto');
+      } else if (pathname.includes('/settings')) {
+        setCurrentTabState('settings');
+      } else if (pathname.includes('/support')) {
+        setCurrentTabState('support');
+      } else if (pathname.includes('/admin') && freshUser.role === 'ADMIN') {
+        setCurrentTabState('admin');
+      } else if (savedTab) {
         if (savedTab === 'admin' && freshUser.role !== 'ADMIN') {
           setCurrentTabState('dashboard');
         } else {
@@ -70,13 +87,13 @@ export function App() {
         if (typeof window !== 'undefined') {
           const fullUrl = window.location.href;
           const pathname = window.location.pathname.toLowerCase();
-          const isRefLink = fullUrl.includes('=VXREF-') || fullUrl.includes('ref=') || pathname.includes('/register');
-          const isLoginLink = pathname.includes('/login');
+          const isRefLink = fullUrl.includes('=VXREF-') || fullUrl.includes('ref=') || pathname.includes('/register') || pathname.includes('/invite');
+          const isLoginOrDashboardLink = pathname.includes('/login') || pathname.includes('/dashboard');
 
           if (isRefLink) {
             setAuthMode('register');
             setShowAuthScreen(true);
-          } else if (isLoginLink) {
+          } else if (isLoginOrDashboardLink) {
             setAuthMode('login');
             setShowAuthScreen(true);
           }

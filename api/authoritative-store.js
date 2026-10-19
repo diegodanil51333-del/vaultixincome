@@ -1,8 +1,7 @@
-// api/authoritative-store.ts
 import * as fs from "fs";
 import * as path from "path";
-var STORE_FILE = process.env.VERCEL || process.env.AWS_REGION ? path.resolve("/tmp", ".authoritative_store.json") : path.resolve(process.cwd(), ".authoritative_store.json");
-var INITIAL_USERS = [
+const STORE_FILE = process.env.VERCEL || process.env.AWS_REGION ? path.resolve("/tmp", ".authoritative_store.json") : path.resolve(process.cwd(), ".authoritative_store.json");
+const INITIAL_USERS = [
   {
     userId: "USR-000001",
     accountId: "VX-100001",
@@ -55,7 +54,7 @@ var INITIAL_USERS = [
     createdAt: "2026-02-01T12:00:00.000Z"
   }
 ];
-var AuthoritativeStore = class {
+class AuthoritativeStore {
   users = /* @__PURE__ */ new Map();
   investments = /* @__PURE__ */ new Map();
   transactions = /* @__PURE__ */ new Map();
@@ -358,8 +357,8 @@ var AuthoritativeStore = class {
   getTransactionsForUser(userId) {
     return Array.from(this.transactions.values()).filter((tx) => tx.userId === userId);
   }
-};
-var authoritativeStore = new AuthoritativeStore();
+}
+const authoritativeStore = new AuthoritativeStore();
 export {
   authoritativeStore
 };
