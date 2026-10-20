@@ -28,108 +28,124 @@ export function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
-    initializeDatabase();
+    // Failsafe timer to ensure UI always reveals within 300ms even on slow mobile devices
+    const failsafeTimer = setTimeout(() => {
+      setIsInitialized(true);
+    }, 300);
 
-    // Synchronous session recovery with triple-key fallback
-    const recoveredSession = getCurrentSession();
-    if (recoveredSession) {
-      const allUsers = getUsers();
-      const recUserId = recoveredSession?.userId;
-      const recEmail = recoveredSession?.email && typeof recoveredSession.email === 'string' ? recoveredSession.email.toLowerCase() : '';
-      const recUsername = recoveredSession?.username && typeof recoveredSession.username === 'string' ? recoveredSession.username.toLowerCase() : '';
-
-      const found = allUsers.find(
-        (u) =>
-          Boolean(u?.userId && recUserId && u.userId === recUserId) ||
-          Boolean(u?.email && recEmail && typeof u.email === 'string' && u.email.toLowerCase() === recEmail) ||
-          Boolean(u?.username && recUsername && typeof u.username === 'string' && u.username.toLowerCase() === recUsername)
-      );
-      const freshUser: User = found ? { ...found, ...recoveredSession } : recoveredSession;
-      if (
-        (freshUser?.email && typeof freshUser.email === 'string' && freshUser.email.toLowerCase() === 'vaultixincometeam@outlook.com') ||
-        recoveredSession?.role === 'ADMIN'
-      ) {
-        freshUser.role = 'ADMIN';
-      }
-      setCurrentUser(freshUser);
-
-      // Restore saved active tab on page refresh or direct URL navigation
-      const savedTab = (localStorage.getItem(TAB_STORAGE_KEY) || sessionStorage.getItem(TAB_STORAGE_KEY)) as NavTab | null;
-      const pathname = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-      if (pathname.includes('/dashboard')) {
-        setCurrentTabState('dashboard');
-      } else if (pathname.includes('/vaults') || pathname.includes('/plans') || pathname.includes('/invest')) {
-        setCurrentTabState('vaults');
-      } else if (pathname.includes('/wallet')) {
-        setCurrentTabState('wallet');
-      } else if (pathname.includes('/invite') || pathname.includes('/referral')) {
-        setCurrentTabState('invite');
-      } else if (pathname.includes('/buy') || pathname.includes('/crypto')) {
-        setCurrentTabState('buy_crypto');
-      } else if (pathname.includes('/settings')) {
-        setCurrentTabState('settings');
-      } else if (pathname.includes('/support')) {
-        setCurrentTabState('support');
-      } else if (pathname.includes('/admin') && freshUser.role === 'ADMIN') {
-        setCurrentTabState('admin');
-      } else if (savedTab) {
-        if (savedTab === 'admin' && freshUser.role !== 'ADMIN') {
-          setCurrentTabState('dashboard');
-        } else {
-          setCurrentTabState(savedTab);
-        }
-      } else if (freshUser.role === 'ADMIN') {
-        setCurrentTabState('admin');
-      }
-    } else {
-      // Auto-detect referral link or direct auth route for unauthenticated visitors
+    try {
       try {
-        if (typeof window !== 'undefined') {
-          const fullUrl = window.location.href;
-          const pathname = window.location.pathname.toLowerCase();
-          const isRefLink = fullUrl.includes('=VXREF-') || fullUrl.includes('ref=') || pathname.includes('/register') || pathname.includes('/invite');
-          const isLoginOrDashboardLink = pathname.includes('/login') || pathname.includes('/dashboard');
-
-          if (isRefLink) {
-            setAuthMode('register');
-            setShowAuthScreen(true);
-          } else if (isLoginOrDashboardLink) {
-            setAuthMode('login');
-            setShowAuthScreen(true);
-          }
-        }
-      } catch {
-        // Fallback
+        initializeDatabase();
+      } catch (dbErr) {
+        console.warn('Non-blocking database initialization notice:', dbErr);
       }
+
+      // Synchronous session recovery with triple-key fallback
+      const recoveredSession = getCurrentSession();
+      if (recoveredSession) {
+        const allUsers = getUsers();
+        const recUserId = recoveredSession?.userId;
+        const recEmail = recoveredSession?.email && typeof recoveredSession.email === 'string' ? recoveredSession.email.toLowerCase() : '';
+        const recUsername = recoveredSession?.username && typeof recoveredSession.username === 'string' ? recoveredSession.username.toLowerCase() : '';
+
+        const found = allUsers.find(
+          (u) =>
+            Boolean(u?.userId && recUserId && u.userId === recUserId) ||
+            Boolean(u?.email && recEmail && typeof u.email === 'string' && u.email.toLowerCase() === recEmail) ||
+            Boolean(u?.username && recUsername && typeof u.username === 'string' && u.username.toLowerCase() === recUsername)
+        );
+        const freshUser: User = found ? { ...found, ...recoveredSession } : recoveredSession;
+        if (
+          (freshUser?.email && typeof freshUser.email === 'string' && freshUser.email.toLowerCase() === 'vaultixincometeam@outlook.com') ||
+          recoveredSession?.role === 'ADMIN'
+        ) {
+          freshUser.role = 'ADMIN';
+        }
+        setCurrentUser(freshUser);
+
+        // Restore saved active tab on page refresh or direct URL navigation
+        const savedTab = (localStorage.getItem(TAB_STORAGE_KEY) || sessionStorage.getItem(TAB_STORAGE_KEY)) as NavTab | null;
+        const pathname = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+        if (pathname.includes('/dashboard')) {
+          setCurrentTabState('dashboard');
+        } else if (pathname.includes('/vaults') || pathname.includes('/plans') || pathname.includes('/invest')) {
+          setCurrentTabState('vaults');
+        } else if (pathname.includes('/wallet')) {
+          setCurrentTabState('wallet');
+        } else if (pathname.includes('/invite') || pathname.includes('/referral')) {
+          setCurrentTabState('invite');
+        } else if (pathname.includes('/buy') || pathname.includes('/crypto')) {
+          setCurrentTabState('buy_crypto');
+        } else if (pathname.includes('/settings')) {
+          setCurrentTabState('settings');
+        } else if (pathname.includes('/support')) {
+          setCurrentTabState('support');
+        } else if (pathname.includes('/admin') && freshUser.role === 'ADMIN') {
+          setCurrentTabState('admin');
+        } else if (savedTab) {
+          if (savedTab === 'admin' && freshUser.role !== 'ADMIN') {
+            setCurrentTabState('dashboard');
+          } else {
+            setCurrentTabState(savedTab);
+          }
+        } else if (freshUser.role === 'ADMIN') {
+          setCurrentTabState('admin');
+        }
+      } else {
+        // Auto-detect referral link or direct auth route for unauthenticated visitors
+        try {
+          if (typeof window !== 'undefined') {
+            const fullUrl = window.location.href;
+            const pathname = window.location.pathname.toLowerCase();
+            const isRefLink = fullUrl.includes('=VXREF-') || fullUrl.includes('ref=') || pathname.includes('/register') || pathname.includes('/invite');
+            const isLoginOrDashboardLink = pathname.includes('/login') || pathname.includes('/dashboard');
+
+            if (isRefLink) {
+              setAuthMode('register');
+              setShowAuthScreen(true);
+            } else if (isLoginOrDashboardLink) {
+              setAuthMode('login');
+              setShowAuthScreen(true);
+            }
+          }
+        } catch {
+          // Fallback
+        }
+      }
+    } catch (err) {
+      console.warn('App initialization fallback:', err);
+    } finally {
+      setIsInitialized(true);
     }
 
     const handleUpdate = () => {
-      const sess = getCurrentSession();
-      if (sess) {
-        const all = getUsers();
-        const sUserId = sess?.userId;
-        const sEmail = sess?.email && typeof sess.email === 'string' ? sess.email.toLowerCase() : '';
-        const sUsername = sess?.username && typeof sess.username === 'string' ? sess.username.toLowerCase() : '';
+      try {
+        const sess = getCurrentSession();
+        if (sess) {
+          const all = getUsers();
+          const sUserId = sess?.userId;
+          const sEmail = sess?.email && typeof sess.email === 'string' ? sess.email.toLowerCase() : '';
+          const sUsername = sess?.username && typeof sess.username === 'string' ? sess.username.toLowerCase() : '';
 
-        const found = all.find(
-          (u) =>
-            Boolean(u?.userId && sUserId && u.userId === sUserId) ||
-            Boolean(u?.email && sEmail && typeof u.email === 'string' && u.email.toLowerCase() === sEmail) ||
-            Boolean(u?.username && sUsername && typeof u.username === 'string' && u.username.toLowerCase() === sUsername)
-        );
-        if (found) {
-          setCurrentUser((prev) => (prev ? { ...prev, ...found } : found));
+          const found = all.find(
+            (u) =>
+              Boolean(u?.userId && sUserId && u.userId === sUserId) ||
+              Boolean(u?.email && sEmail && typeof u.email === 'string' && u.email.toLowerCase() === sEmail) ||
+              Boolean(u?.username && sUsername && typeof u.username === 'string' && u.username.toLowerCase() === sUsername)
+          );
+          if (found) {
+            setCurrentUser((prev) => (prev ? { ...prev, ...found } : found));
+          }
         }
-      }
+      } catch {}
     };
     window.addEventListener('vaultix_users_updated', handleUpdate);
     window.addEventListener('vaultix_txs_updated', handleUpdate);
     window.addEventListener('vaultix_investments_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
-    setIsInitialized(true);
-
     return () => {
+      clearTimeout(failsafeTimer);
       window.removeEventListener('vaultix_users_updated', handleUpdate);
       window.removeEventListener('vaultix_txs_updated', handleUpdate);
       window.removeEventListener('vaultix_investments_updated', handleUpdate);

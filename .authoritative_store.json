@@ -212,6 +212,25 @@
       "hasReceivedSignupBonus": true,
       "hasReceivedFirstDepositBonus": false,
       "createdAt": "2026-10-18T12:23:40.581Z"
+    },
+    {
+      "userId": "test-user-1792517214059",
+      "accountId": "VX-998877",
+      "username": "crypto_trader_alex",
+      "fullName": "Alex Trader",
+      "email": "alex.trader@example.com",
+      "role": "USER",
+      "accountStatus": "ACTIVE",
+      "balance": 100,
+      "totalDeposits": 100,
+      "totalInvestments": 0,
+      "totalProfitLoss": 0,
+      "referralEarnings": 0,
+      "bonusBalance": 2,
+      "referralCode": "VXREF-ALEX",
+      "hasReceivedSignupBonus": true,
+      "hasReceivedFirstDepositBonus": false,
+      "createdAt": "2026-10-20T17:26:54.059Z"
     }
   ],
   "investments": [
